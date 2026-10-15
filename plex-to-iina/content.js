@@ -267,6 +267,13 @@
     params.mpv_cache = 'yes';
     params['mpv_cache-secs'] = '86400';
     params['mpv_demuxer-max-bytes'] = `${gb}GiB`;
+    // Also keep what was just played, so seeking back doesn't re-download: mpv's default
+    // 50 MiB is only ~4.5 s of a 91 Mbps remux. A fifth of the buffer on top: 1 GB at the
+    // 5 GB setting, ~90 s of that remux.
+    params['mpv_demuxer-max-back-bytes'] = `${Math.round((gb * 1024) / 5)}MiB`;
+    // After a seek outside the buffer, resume once 2 s are buffered and keep filling in the
+    // background, rather than waiting for IINA's "cache pause wait" (up to 10 s if raised).
+    params['mpv_cache-pause-wait'] = '2';
     const query = Object.entries(params)
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');

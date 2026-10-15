@@ -36,7 +36,7 @@ your own server (`http://<server>:32400/web`).
 - **Progress syncs back to Plex** (with the IINA plugin): Continue Watching, resume points,
   watched status and the server dashboard's Now Playing.
 - **Large read-ahead buffer** (1, 2 or 5 GB) that rides out network hiccups on
-  high-bitrate files.
+  high-bitrate files, with instant rewinds.
 - Music, photos and anything it can't resolve still play in Plex. **Option-click** Play
   to use Plex's own player for one item.
 
@@ -126,8 +126,14 @@ How long the buffer lasts depends on the bitrate:
 | 2 GB | ~3 min | ~5 min | ~28 min |
 | 5 GB | ~7 min | ~12 min | the whole episode |
 
+IINA also keeps a fifth of that amount of what you've just watched, so rewinding is
+instant: at 5 GB that's 1 GB, about 90 seconds of a 4K remux. If you jump somewhere
+that isn't buffered, playback resumes once 2 seconds are loaded and the rest fills in
+the background.
+
 The buffer fills only as fast as your network allows, and each IINA window can use that
-much memory. It replaces IINA's own cache settings for these streams only.
+much memory (plus the fifth for rewinding). It replaces IINA's own cache settings for
+these streams only.
 
 With the plugin installed, IINA shows **Syncing progress with Plex** once per file. It
 reports the position every 10 seconds while playing and right away when you pause, seek or

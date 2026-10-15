@@ -6,6 +6,15 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+### Improved
+
+- Rewinding plays from memory instead of downloading again: IINA keeps a fifth of the
+  buffer size of what you just watched (1 GB at the 5 GB setting, about 90 seconds of
+  a 4K remux).
+- After jumping to a part that isn't buffered yet, playback resumes once 2 seconds are
+  loaded and the rest fills in the background, instead of waiting for IINA's cache
+  setting (up to 10 seconds).
+
 ## [1.1.0] - 2026-10-15
 
 First public release.
