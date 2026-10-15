@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Plex → IINA",
+  "version": "1.1.0",
+  "description": "Press Play in Plex Web and the original file streams in IINA: no transcoding, full-bitrate 4K remuxes, lossless multichannel audio.",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "Plex → IINA",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.plex.tv/*",
+        "*://*/web/index.html*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

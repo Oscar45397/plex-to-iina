@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plex → IINA</title>
+  <style>
+    :root { color-scheme: light dark; --accent: #e5a00d; --muted: #6b7075; --line: #e3e5e8; --bg: #fff; --fg: #1d1f21; }
+    @media (prefers-color-scheme: dark) { :root { --muted: #9aa0a6; --line: #34383c; --bg: #1f2326; --fg: #eceef0; } }
+    body { margin: 0; width: 300px; background: var(--bg); color: var(--fg); font: 13px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+    header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: 15px; font-weight: 600; }
+    h1 span { color: var(--accent); }
+    label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 16px; cursor: pointer; }
+    label + label { border-top: 1px solid var(--line); }
+    input { margin: 2px 0 0; accent-color: var(--accent); }
+    .grow { flex: 1; }
+    select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; accent-color: var(--accent); }
+    small { display: block; color: var(--muted); font-size: 12px; }
+    footer { padding: 10px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    kbd { font: inherit; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <header><h1>Plex <span>→</span> IINA</h1></header>
+  <label>
+    <input type="checkbox" id="enabled">
+    <span>Open Play in IINA<small>Streams the original file. No transcoding.</small></span>
+  </label>
+  <label>
+    <input type="checkbox" id="resume">
+    <span>Resume where Plex left off<small>Uses the item's Plex watch position.</small></span>
+  </label>
+  <label>
+    <input type="checkbox" id="fullScreen">
+    <span>Open full screen</span>
+  </label>
+  <label>
+    <span class="grow">Buffer size<small>How much of the film IINA reads ahead, kept in memory. 5 GB is about 7 minutes of a 4K remux.</small></span>
+    <select id="bufferGB">
+      <option value="1">1 GB</option>
+      <option value="2">2 GB</option>
+      <option value="5">5 GB</option>
+    </select>
+  </label>
+  <footer><kbd>⌥ Option</kbd>-click Play to use Plex's own player.</footer>
+  <script src="popup.js"></script>
+</body>
+</html>
