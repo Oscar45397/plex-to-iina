@@ -6,6 +6,13 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+### Added
+
+- Starts on the best audio track in the language Plex picked (lossless first, then the
+  most channels) and uses Plex's subtitle choice, so you rarely need to switch tracks
+  in IINA, which makes it download its buffer again. On by default; turn it off in the
+  popup to use Plex's audio choice.
+
 ### Improved
 
 - Rewinding plays from memory instead of downloading again: IINA keeps a fifth of the

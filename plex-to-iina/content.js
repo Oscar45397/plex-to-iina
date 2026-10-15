@@ -32,7 +32,7 @@
   note('hello', location.host);
 
   const BUFFER_SIZES = [1, 2, 5]; // GB, offered in the popup
-  const DEFAULTS = { enabled: true, resume: true, fullScreen: false, bufferGB: 5 };
+  const DEFAULTS = { enabled: true, resume: true, fullScreen: false, bufferGB: 5, bestAudio: true };
   let settings = { ...DEFAULTS };
   ext.storage.sync.get(DEFAULTS).then((stored) => { settings = stored; });
   ext.storage.onChanged.addListener((changes, area) => {
@@ -231,13 +231,67 @@
     const part = media?.Part?.[0];
     if (!part?.key) throw new Error('no media file for this item');
 
+    let streams = part.Stream;
+    if (!streams) {
+      // Episodes from a show's episode list come without stream details.
+      const full = (await plexGet(server, `/library/metadata/${item.ratingKey}`)).Metadata?.[0];
+      streams = full?.Media?.find((m) => m.id === media.id)?.Part?.[0]?.Stream ?? [];
+    }
+    const tracks = pickTracks(streams);
+
     return {
       ratingKey: item.ratingKey,
       partKey: part.key,
       viewOffset: item.viewOffset ?? 0,
       title: titleOf(item),
-      quality: describe(media),
+      quality: describe(media, tracks.audio),
+      tracks,
     };
+  }
+
+  // Choose the audio and subtitle tracks before IINA starts, because switching tracks
+  // during playback makes mpv throw away its whole buffer and download it again.
+  // Audio: the best track in the language Plex picked (lossless first, then the most
+  // channels), unless Plex picked a commentary track. Subtitles: whatever Plex picked.
+  // mpv numbers tracks of each type from 1 in file order, which is Plex's `index` order.
+  function pickTracks(streams) {
+    if (!streams.length) return {}; // nothing known: let IINA choose
+    const byIndex = (a, b) => a.index - b.index;
+    const audio = streams.filter((s) => s.streamType === 2 && s.index != null).sort(byIndex);
+    const subtitles = streams.filter((s) => s.streamType === 3 && s.index != null).sort(byIndex);
+    const tracks = {};
+
+    const plexAudio = audio.find((s) => s.selected) ?? audio.find((s) => s.default) ?? audio[0];
+    if (plexAudio) {
+      let chosen = plexAudio;
+      if (settings.bestAudio && !isCommentary(plexAudio)) {
+        chosen = audio
+          .filter((s) => s.languageCode === plexAudio.languageCode && !isCommentary(s))
+          .reduce((best, s) => (audioScore(s) > audioScore(best) ? s : best), plexAudio);
+      }
+      tracks.aid = audio.indexOf(chosen) + 1;
+      tracks.audio = chosen;
+    }
+
+    const plexSubtitle = streams.find((s) => s.streamType === 3 && s.selected);
+    if (!plexSubtitle) tracks.sid = 'no';
+    else if (subtitles.includes(plexSubtitle)) tracks.sid = subtitles.indexOf(plexSubtitle) + 1;
+    // A separate subtitle file (no index) isn't inside the video; leave that to IINA.
+    return tracks;
+  }
+
+  function isCommentary(stream) {
+    return /commentary/i.test(`${stream.title ?? ''} ${stream.displayTitle ?? ''}`);
+  }
+
+  function isLossless(stream) {
+    return ['truehd', 'flac', 'alac', 'dca-ma'].includes(stream.codec)
+      || stream.codec?.startsWith('pcm')
+      || (stream.codec === 'dca' && stream.profile === 'ma');
+  }
+
+  function audioScore(stream) {
+    return (isLossless(stream) ? 1e6 : 0) + (stream.channels ?? 0) * 1e4 + (stream.bitrate ?? 0) / 100;
   }
 
   async function nextEpisode(server, ratingKey) {
@@ -274,6 +328,10 @@
     // After a seek outside the buffer, resume once 2 s are buffered and keep filling in the
     // background, rather than waiting for IINA's "cache pause wait" (up to 10 s if raised).
     params['mpv_cache-pause-wait'] = '2';
+    // Tracks chosen up front (see pickTracks); 'auto' when unknown, so a reused IINA window
+    // doesn't keep the previous file's choice.
+    params.mpv_aid = video.tracks.aid ? String(video.tracks.aid) : 'auto';
+    params.mpv_sid = video.tracks.sid ? String(video.tracks.sid) : 'auto';
     const query = Object.entries(params)
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
@@ -312,12 +370,16 @@
     return item.year ? `${item.title} (${item.year})` : item.title;
   }
 
-  function describe(media) {
+  // audioStream: the track chosen by pickTracks, if known; otherwise Plex's summary.
+  function describe(media, audioStream) {
     const resolution = { '4k': '4K', 1080: '1080p', 720: '720p', 480: '480p', sd: 'SD' }[media.videoResolution]
       ?? media.videoResolution ?? '';
     const video = [resolution, (media.videoCodec ?? '').toUpperCase()].filter(Boolean).join(' ');
-    const channels = { 8: '7.1', 7: '6.1', 6: '5.1', 2: '2.0', 1: 'mono' }[media.audioChannels] ?? '';
-    const audio = [audioName(media), channels].filter(Boolean).join(' ');
+    const track = audioStream
+      ? { audioCodec: audioStream.codec, audioProfile: audioStream.profile, audioChannels: audioStream.channels }
+      : media;
+    const channels = { 8: '7.1', 7: '6.1', 6: '5.1', 2: '2.0', 1: 'mono' }[track.audioChannels] ?? '';
+    const audio = [audioName(track), channels].filter(Boolean).join(' ');
     const rate = media.bitrate ? `${Math.round(media.bitrate / 1000)} Mbps` : '';
     return [video, audio, rate].filter(Boolean).join(' · ');
   }

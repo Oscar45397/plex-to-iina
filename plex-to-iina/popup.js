@@ -2,7 +2,7 @@
 const ext = globalThis.browser ?? globalThis.chrome;
 
 // Keep in sync with DEFAULTS in content.js.
-const DEFAULTS = { enabled: true, resume: true, fullScreen: false, bufferGB: 5 };
+const DEFAULTS = { enabled: true, resume: true, fullScreen: false, bufferGB: 5, bestAudio: true };
 
 ext.storage.sync.get(DEFAULTS).then((settings) => {
   for (const [key, value] of Object.entries(settings)) {
