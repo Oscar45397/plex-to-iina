@@ -2,7 +2,8 @@
 
 Serves one video file at a /library/parts/ path (with HTTP range support, so IINA can
 seek) and appends every progress call the plugin makes (/:/timeline, /:/progress,
-/:/scrobble) to a JSON-lines log.
+/:/scrobble) to a JSON-lines log. Every video request is logged too ("media", with the
+byte offset it starts at), so you can see when a seek made IINA re-download.
 
 Usage:
     ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=24 -f lavfi -i sine -t 40 \\
@@ -64,6 +65,10 @@ class Handler(BaseHTTPRequestHandler):
                 a, _, b = rng[6:].partition('-')
                 start = int(a) if a else size - int(b)
                 end = int(b) if a and b else size - 1
+            # Each new request means IINA (re)started reading at this offset, e.g. after
+            # a seek outside its buffer.
+            record({'path': 'media', 'token_ok': q.get('X-Plex-Token') == TOKEN,
+                    'from_byte': start, 'from_pct': round(100 * start / size, 1)})
             self.send_response(206 if rng else 200)
             self.send_header('Content-Type', 'video/x-matroska')
             self.send_header('Accept-Ranges', 'bytes')
