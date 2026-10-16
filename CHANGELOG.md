@@ -12,6 +12,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   most channels) and uses Plex's subtitle choice, so you rarely need to switch tracks
   in IINA, which makes it download its buffer again. On by default; turn it off in the
   popup to use Plex's audio choice.
+- Subtitles for other languages: when the audio isn't in one of your languages and Plex
+  picked no subtitles, the best subtitles in your language are turned on (full before
+  forced-only, regular before SDH). Set your languages in the popup, or leave it empty
+  to use your browser's languages.
 
 ### Improved
 

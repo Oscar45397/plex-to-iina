@@ -15,6 +15,8 @@
     input { margin: 2px 0 0; accent-color: var(--accent); }
     .grow { flex: 1; }
     select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; accent-color: var(--accent); }
+    .stack { flex-direction: column; gap: 6px; }
+    input[type="text"] { box-sizing: border-box; width: 100%; margin: 0; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
     small { display: block; color: var(--muted); font-size: 12px; }
     footer { padding: 10px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     kbd { font: inherit; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
@@ -32,7 +34,15 @@
   </label>
   <label>
     <input type="checkbox" id="bestAudio">
-    <span>Start with the best audio track<small>Lossless and most channels, in the language Plex picked. Subtitles follow Plex. Switching tracks in IINA re-downloads the buffer.</small></span>
+    <span>Start with the best audio track<small>Lossless and most channels, in the language Plex picked. Switching tracks in IINA re-downloads the buffer.</small></span>
+  </label>
+  <label>
+    <input type="checkbox" id="autoSubtitles">
+    <span>Subtitles for other languages<small>When the audio isn't in one of your languages and Plex picked no subtitles, turn on the best subtitles in your language. Otherwise subtitles follow Plex.</small></span>
+  </label>
+  <label class="stack">
+    <span>Your languages<small>In order of preference, like English, Spanish. Leave empty to use your browser's languages.</small></span>
+    <input type="text" id="myLanguages" autocomplete="off" spellcheck="false">
   </label>
   <label>
     <input type="checkbox" id="fullScreen">
@@ -47,6 +57,7 @@
     </select>
   </label>
   <footer><kbd>⌥ Option</kbd>-click Play to use Plex's own player.</footer>
+  <script src="languages.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
