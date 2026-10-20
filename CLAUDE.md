@@ -2,7 +2,8 @@
 
 Browser extension (Chrome + Safari on macOS) that sends Plex Web's Play buttons to IINA,
 streaming the original file from Plex Media Server, plus an IINA plugin that reports
-playback progress back to Plex. See README.md for how it works and the project layout.
+playback progress back to Plex. README.md is the short user guide; how things work is
+explained in comments in the code.
 
 This is a **public repository** (github.com/s7zjg7r9wf-cell/plex-to-iina). Everything
 committed is visible to anyone, forever, so the rules below apply to every commit.
@@ -17,6 +18,8 @@ Before every commit, check the staged diff for, and remove:
 - Server addresses, IPs, hostnames, Plex machine identifiers, NAS or library names
 - Plex tokens (`X-Plex-Token`), plex.tv account data, cookies, logs that contain them
 - Screenshots or test media from the user's own library
+- Details of the user's own setup: hardware, network, measurements, the languages they
+  speak. Examples in docs, comments and UI text stay generic.
 
 Quick check before committing:
 
@@ -26,6 +29,14 @@ git diff --cached | grep -inE 'token=[a-z0-9]{8,}|@gmail|192\.168\.|10\.[0-9]+\.
 
 Commits use the repo's local git identity (the GitHub name and its no-reply email). Don't
 change it, and never commit with a personal email address.
+
+## README
+
+Keep README.md short and general: what it is, how to install it, performance in general
+terms (typical bitrates and network speeds, not one person's measurements), and
+troubleshooting and known limits that apply to everyone. Details of how it works belong
+in code comments, changes in CHANGELOG.md. Every pushed version stays public, so update
+the README in the same change that makes it wrong.
 
 ## Commit messages
 
