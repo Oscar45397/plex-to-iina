@@ -14,6 +14,12 @@
   // One per poster card, and the class Plex gives each card's root (poster plus title).
   const POSTER = '[data-testid^="metadataPosterCard--"]';
   const CARD_ROOT = /\bMetadataPoster(?:Cell|ListItem)-/;
+  // Plex's own Resume Playback dialog ("Resume from 1:14:57" / "Start from the
+  // beginning"), which it shows when it starts an item with a watch position itself.
+  const DIALOG = '[class*="ModalContent-modalContent"]';
+  const DIALOG_CLOSE = '[class*="ModalContent-closeButton"]';
+  const DIALOG_ITEM = '[class*="ListModalItem-listModalItem"]';
+  const MENU_OR_DIALOG = '[class*="Menu-menuPortal"], [role="menu"], [role="menuitem"], [class*="Modal-modalContainer"]';
   const VIDEO_TYPES = new Set(['movie', 'episode', 'clip']);
   const CLIENT_ID = 'plex-to-iina-extension';
   const SERVER_CACHE_MS = 10 * 60 * 1000;
@@ -48,13 +54,27 @@
 
   // Set while we re-send a click to Plex, so our own listener lets it through.
   let replaying = false;
+  // The item the last click was about, because Plex's Resume Playback dialog doesn't say.
+  let lastItem = null;
+  // Resume dialogs whose choice is already on its way to IINA.
+  const handledDialogs = new WeakSet();
 
   // Capture phase on window runs before React's listeners on the app root.
   window.addEventListener('click', onClick, true);
+  // The Resume dialog's buttons act on mouseup, so those are caught too.
+  window.addEventListener('mousedown', onDialogMouse, true);
+  window.addEventListener('mouseup', onDialogMouse, true);
 
   function onClick(event) {
-    if (replaying || !settings.enabled || event.altKey || event.button !== 0) return;
-    const button = event.target instanceof Element ? event.target.closest(PLAY_BUTTONS) : null;
+    if (replaying || event.button !== 0 || !(event.target instanceof Element)) return;
+    const choice = resumeDialogChoice(event.target);
+    if (choice) {
+      onResumeDialog(event, choice);
+      return;
+    }
+    rememberItem(event.target, event.altKey);
+    if (!settings.enabled || event.altKey) return;
+    const button = event.target.closest(PLAY_BUTTONS);
     if (!button) return;
     const target = findTarget(button);
     // The route holds the server and item IDs, never the token.
@@ -63,6 +83,64 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     playInIina(target, button);
+  }
+
+  // ---- Plex's Resume Playback dialog ---------------------------------------------
+
+  // Plex shows this dialog when a Play we didn't catch reaches it for an item with a
+  // watch position. It has two list items: the first holds the position
+  // ("Resume from 1:14:57"), the second is "Start from the beginning". Matched by that
+  // shape rather than by text, because Plex Web is translated.
+  function resumeDialogChoice(el) {
+    const item = el.closest(DIALOG_ITEM);
+    const dialog = item?.closest(DIALOG);
+    const items = dialog ? [...dialog.querySelectorAll(DIALOG_ITEM)] : [];
+    if (items.length !== 2 || !/\d:\d\d/.test(items[0].textContent)) return null;
+    return { dialog, item, resume: item === items[0] };
+  }
+
+  // Only when we know the item: a dialog after a click we can't place stays with Plex.
+  function takesOver(choice, event) {
+    return settings.enabled && !event.altKey && Boolean(lastItem || handledDialogs.has(choice.dialog));
+  }
+
+  // Plex's dialog buttons press on mouseup (or on click when focused). Hide all three
+  // events from Plex and act on the click, which keyboard Enter and Space also send.
+  function onDialogMouse(event) {
+    if (replaying || event.button !== 0 || !(event.target instanceof Element)) return;
+    const choice = resumeDialogChoice(event.target);
+    if (!choice) return;
+    if (takesOver(choice, event)) event.stopImmediatePropagation();
+    else if (event.type === 'mousedown') noteLeftToPlex();
+  }
+
+  function onResumeDialog(event, choice) {
+    if (!takesOver(choice, event)) {
+      // Reached by keyboard; a mouse press has already gone to Plex on mouseup.
+      noteLeftToPlex();
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (handledDialogs.has(choice.dialog)) return; // a second click while the first is on its way
+    handledDialogs.add(choice.dialog);
+    note('log', `Resume dialog: ${choice.resume ? 'resume' : 'start from the beginning'}, item ${lastItem.ratingKey}`);
+    playInIina(lastItem, choice.item, { resume: choice.resume }).then((opened) => {
+      if (opened) press(choice.dialog.querySelector(DIALOG_CLOSE));
+    });
+  }
+
+  function noteLeftToPlex() {
+    note('log', `Resume dialog: ${lastItem ? 'Option-click or turned off' : 'item not known'}, leaving it to Plex`);
+  }
+
+  // Remember which item a click was about: a poster card's item, or the item whose page
+  // this is. Clicks in a menu or dialog keep the item that opened it.
+  function rememberItem(el, altKey) {
+    if (el.closest(MENU_OR_DIALOG)) return;
+    if (altKey) lastItem = null; // Option-click: Plex's player, dialog included
+    else if (el.closest(POSTER)) lastItem = findTarget(el.closest('button, a') ?? el);
+    else lastItem = parsePlexLink(location.href); // null unless on an item's page
   }
 
   // ---- Which item was clicked ----------------------------------------------------
@@ -99,7 +177,8 @@
 
   // ---- Main flow -----------------------------------------------------------------
 
-  async function playInIina(target, button) {
+  // Resolves to true once IINA was asked to play; otherwise the click went back to Plex.
+  async function playInIina(target, button, { resume = settings.resume } = {}) {
     toast('Finding the original file…', { sticky: true });
     try {
       const server = await resolveServer(target.machineId);
@@ -108,7 +187,7 @@
         // Music, photos, etc.: let Plex handle them.
         note('log', 'Not a video, handing back to Plex');
         handBack(button, null);
-        return;
+        return false;
       }
       const { autoSubtitle, betterAudio, audio } = video.tracks;
       const languageOf = (stream) => LANGUAGES.displayName(LANGUAGES.ofStream(stream) ?? 'und');
@@ -118,24 +197,41 @@
         server.relay && '⚠ Via Plex Relay: bandwidth is limited',
       ].filter(Boolean);
       note('log', `Found ${video.title} (${video.quality}) on ${new URL(server.uri).host}${notes.map((n) => `; ${n}`).join('')}`);
-      await openExternal(iinaUrl(server, video));
+      await openExternal(iinaUrl(server, video, resume));
       // Keep a note about other audio up long enough to read.
       toast([`▶ ${video.title} in IINA`, video.quality, ...notes].join('\n'), { long: Boolean(betterAudio) });
+      return true;
     } catch (err) {
       console.warn('[Plex → IINA]', err);
       note('log', `Failed: ${err.message}`);
       handBack(button, `Couldn't open in IINA (${err.message}). Playing in Plex instead.`);
+      return false;
     }
   }
 
   function handBack(button, message) {
+    // If Plex now asks where to resume, that's its player's question: leave it to Plex.
+    lastItem = null;
     if (button.isConnected) {
-      replaying = true;
-      try { button.click(); } finally { replaying = false; }
+      press(button);
       if (message) toast(message, { error: true });
       else hideToast();
     } else {
       toast(message ?? 'Option-click Play to use the Plex player for this item.', { error: Boolean(message) });
+    }
+  }
+
+  // Press a Plex button the way a mouse does, past our own listeners. Plex's newer buttons
+  // act on click, older ones (the Resume dialog's) on mouseup; this presses either once.
+  function press(el) {
+    if (!el?.isConnected) return;
+    replaying = true;
+    try {
+      for (const type of ['mousedown', 'mouseup', 'click']) {
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: 0 }));
+      }
+    } finally {
+      replaying = false;
     }
   }
 
@@ -366,7 +462,7 @@
 
   // ---- Handing off to IINA -------------------------------------------------------
 
-  function iinaUrl(server, video) {
+  function iinaUrl(server, video, resume) {
     // The part URL is the original file, served with HTTP range requests (seeking works).
     const file = new URL(server.uri + video.partKey);
     if (server.token) file.searchParams.set('X-Plex-Token', server.token);
@@ -377,7 +473,7 @@
     if (settings.fullScreen) params.full_screen = '1';
     // IINA keeps mpv options per player window, so always set start explicitly;
     // otherwise the next file would inherit the previous resume point.
-    params.mpv_start = settings.resume && video.viewOffset > 0 ? String(video.viewOffset / 1000) : 'none';
+    params.mpv_start = resume && video.viewOffset > 0 ? String(video.viewOffset / 1000) : 'none';
     // Read ahead until the buffer holds bufferGB of the file, kept in RAM. cache-secs is set
     // far beyond any film's length so size is the only limit: 5 GB is ~7 min of a 91 Mbps
     // remux, ~12 min at 55 Mbps, or a whole TV episode. Always sent, because IINA keeps

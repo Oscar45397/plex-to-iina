@@ -27,6 +27,12 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   loaded and the rest fills in the background, instead of waiting for IINA's cache
   setting (up to 10 seconds).
 
+### Fixed
+
+- When Plex shows its own Resume Playback dialog, choosing **Resume from …** or
+  **Start from the beginning** now plays in IINA, from that point, instead of in Plex's
+  player. If the file can't be found, Plex plays it as before.
+
 ## [1.1.0] - 2026-10-15
 
 First public release.
