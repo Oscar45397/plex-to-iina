@@ -4,74 +4,237 @@
   <meta charset="utf-8">
   <title>Plex → IINA</title>
   <style>
-    :root { color-scheme: light dark; --accent: #e5a00d; --muted: #6b7075; --line: #e3e5e8; --bg: #fff; --fg: #1d1f21; }
-    @media (prefers-color-scheme: dark) { :root { --muted: #9aa0a6; --line: #34383c; --bg: #1f2326; --fg: #eceef0; } }
-    body { margin: 0; width: 300px; background: var(--bg); color: var(--fg); font: 13px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
-    header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
-    h1 { margin: 0; font-size: 15px; font-weight: 600; }
+    :root {
+      color-scheme: light dark;
+      --accent: #e5a00d;
+      --on-accent: #1d1d1f;
+      --bg: #f5f5f7;
+      --card: #fff;
+      --fg: #1d1d1f;
+      --muted: #6e6e73;
+      --line: rgba(0, 0, 0, 0.08);
+      --track: rgba(0, 0, 0, 0.2);
+      --field: #fff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1d1f;
+        --card: #2a2b2e;
+        --fg: #f5f5f7;
+        --muted: #a1a1a6;
+        --line: rgba(255, 255, 255, 0.08);
+        --track: rgba(255, 255, 255, 0.18);
+        --field: #1f2022;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 320px;
+      background: var(--bg);
+      color: var(--fg);
+      font: 13px/1.35 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 14px 12px;
+    }
+    header img { width: 28px; height: 28px; }
+    .brand { flex: 1; min-width: 0; }
+    h1 { margin: 0; font-size: 14px; font-weight: 600; }
     h1 span { color: var(--accent); }
-    label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 16px; cursor: pointer; }
-    label + label { border-top: 1px solid var(--line); }
-    input { margin: 2px 0 0; accent-color: var(--accent); }
-    .grow { flex: 1; }
-    select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; accent-color: var(--accent); }
-    .stack { flex-direction: column; gap: 6px; }
-    input[type="text"] { box-sizing: border-box; width: 100%; margin: 0; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
-    small { display: block; color: var(--muted); font-size: 12px; }
-    footer { padding: 10px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-    kbd { font: inherit; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
+    .status { margin: 0; color: var(--muted); font-size: 11.5px; }
+
+    section { margin: 0 12px 12px; }
+    h2 {
+      margin: 0 4px 5px;
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .group { border-radius: 10px; background: var(--card); box-shadow: 0 0 0 0.5px var(--line); }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .row + .row { border-top: 1px solid var(--line); }
+    .row.stack { flex-direction: column; align-items: stretch; gap: 7px; cursor: default; }
+    .text { flex: 1; min-width: 0; }
+    .text small { display: block; margin-top: 1px; color: var(--muted); font-size: 11.5px; }
+
+    /* On/off switch, drawn on the checkbox itself. */
+    input[type="checkbox"] {
+      flex: none;
+      position: relative;
+      width: 32px;
+      height: 19px;
+      margin: 0;
+      border-radius: 10px;
+      background: var(--track);
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 0.5px var(--line);
+      transition: background 0.18s;
+    }
+    input[type="checkbox"]::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      transition: transform 0.18s;
+    }
+    input[type="checkbox"]:checked { background: var(--accent); }
+    input[type="checkbox"]:checked::after { transform: translateX(13px); }
+
+    /* Buffer size: a segmented control made of radio buttons. */
+    .segments {
+      display: flex;
+      flex: none;
+      padding: 2px;
+      border-radius: 7px;
+      background: var(--track);
+    }
+    .segments label { position: relative; }
+    .segments input { position: absolute; opacity: 0; pointer-events: none; }
+    .segments span {
+      display: block;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+    .segments input:checked + span {
+      background: var(--card);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      font-weight: 600;
+    }
+
+    select, input[type="text"] {
+      font: inherit;
+      color: inherit;
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      outline: none;
+    }
+    select { flex: none; padding: 3px 6px; cursor: pointer; }
+    input[type="text"] { width: 100%; margin: 0; padding: 5px 8px; }
+    :is(select, input, .segments label):focus-visible,
+    .segments input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[type="text"]::placeholder { color: var(--muted); }
+
+    /* Settings that don't apply right now: Play goes to Plex, or no Download button. */
+    .off { opacity: 0.45; }
+    .off, .off * { cursor: default; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 2px 16px 14px;
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    kbd {
+      font: inherit;
+      padding: 0 4px;
+      border-radius: 4px;
+      background: var(--track);
+    }
   </style>
 </head>
 <body>
-  <header><h1>Plex <span>→</span> IINA</h1></header>
-  <label>
-    <input type="checkbox" id="enabled">
-    <span>Open Play in IINA<small>Streams the original file. No transcoding.</small></span>
-  </label>
-  <label>
-    <input type="checkbox" id="resume">
-    <span>Resume where Plex left off<small>Uses the item's Plex watch position.</small></span>
-  </label>
-  <label>
-    <input type="checkbox" id="bestAudio">
-    <span>Best audio in your languages<small>Your first language that has audio, then lossless and most channels. If another language has clearly better audio, you'll see a note. Switching tracks in IINA re-downloads the buffer.</small></span>
-  </label>
-  <label>
-    <input type="checkbox" id="autoSubtitles">
-    <span>Subtitles for other languages<small>When the audio isn't in one of your languages and Plex picked no subtitles, turn on the best subtitles in your language. Otherwise subtitles follow Plex.</small></span>
-  </label>
-  <label class="stack">
-    <span>Your languages<small>In order of preference, like English, Spanish. Used for audio and subtitles. Leave empty to use your browser's languages.</small></span>
-    <input type="text" id="myLanguages" autocomplete="off" spellcheck="false">
-  </label>
-  <label>
-    <input type="checkbox" id="fullScreen">
-    <span>Open full screen</span>
-  </label>
-  <label>
-    <span class="grow">Buffer size<small>How much of the film IINA reads ahead, kept in memory, plus a fifth of that for instant rewinds. 5 GB is about 7 minutes of a 4K remux.</small></span>
-    <select id="bufferGB">
-      <option value="1">1 GB</option>
-      <option value="2">2 GB</option>
-      <option value="5">5 GB</option>
-    </select>
-  </label>
-  <label>
-    <input type="checkbox" id="downloadButton">
-    <span>Show a Download button<small>Next to Play. Saves episodes or a film to Downloads › Plex to IINA, to watch in IINA without the server.</small></span>
-  </label>
-  <label>
-    <span class="grow">Episodes per download<small>The usual choice; you can change it next to the button.</small></span>
-    <select id="downloadCount">
-      <option value="1">1</option>
-      <option value="2">2</option>
-      <option value="3">3</option>
-      <option value="5">5</option>
-      <option value="10">10</option>
-      <option value="0">Rest of season</option>
-    </select>
-  </label>
-  <footer><kbd>⌥ Option</kbd>-click Play to use Plex's own player.</footer>
+  <header>
+    <img src="icons/icon-48.png" alt="">
+    <div class="brand">
+      <h1>Plex <span>→</span> IINA</h1>
+      <p class="status" id="status">Play opens in IINA</p>
+    </div>
+    <input type="checkbox" id="enabled" title="Open Play in IINA" aria-label="Open Play in IINA">
+  </header>
+
+  <section id="playback">
+    <h2>Playback</h2>
+    <div class="group">
+      <label class="row" title="Starts at the item's Plex watch position. Off: from the beginning.">
+        <span class="text">Resume where you left off</span>
+        <input type="checkbox" id="resume">
+      </label>
+      <label class="row">
+        <span class="text">Open full screen</span>
+        <input type="checkbox" id="fullScreen">
+      </label>
+      <div class="row" title="How much of the file IINA reads ahead into memory, plus a fifth of that so rewinding plays from memory.">
+        <span class="text">Buffer<small>5 GB ≈ 7 min of 4K</small></span>
+        <div class="segments" role="radiogroup" aria-label="Buffer size">
+          <label><input type="radio" name="bufferGB" value="1"><span>1 GB</span></label>
+          <label><input type="radio" name="bufferGB" value="2"><span>2 GB</span></label>
+          <label><input type="radio" name="bufferGB" value="5"><span>5 GB</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tracks">
+    <h2>Audio &amp; subtitles</h2>
+    <div class="group">
+      <label class="row" title="Your first language that has audio, then lossless and the most channels. If another language has clearly better audio, you'll see a note. Switching tracks in IINA downloads the buffer again.">
+        <span class="text">Best audio track<small>Lossless and most channels first</small></span>
+        <input type="checkbox" id="bestAudio">
+      </label>
+      <label class="row" title="When the audio isn't in one of your languages and Plex picked no subtitles, turn on the best subtitles in your language. Otherwise subtitles follow Plex.">
+        <span class="text">Subtitles when needed<small>When the audio isn't in your language</small></span>
+        <input type="checkbox" id="autoSubtitles">
+      </label>
+      <label class="row stack">
+        <span class="text">Your languages<small>In order of preference. Empty: your browser's.</small></span>
+        <input type="text" id="myLanguages" autocomplete="off" spellcheck="false">
+      </label>
+    </div>
+  </section>
+
+  <section id="downloads">
+    <h2>Downloads</h2>
+    <div class="group">
+      <label class="row" title="Saves episodes or a film to Downloads › Plex to IINA, to watch in IINA without the server.">
+        <span class="text">Download button<small>Next to Play, to watch offline</small></span>
+        <input type="checkbox" id="downloadButton">
+      </label>
+      <label class="row" id="downloadCountRow" title="The usual choice; you can change it next to the button.">
+        <span class="text">Episodes at a time</span>
+        <select id="downloadCount">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="0">Rest of season</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <footer>
+    <span><kbd>⌥</kbd>-click Play for Plex's player</span>
+    <span id="version"></span>
+  </footer>
   <script src="languages.js"></script>
   <script src="popup.js"></script>
 </body>
