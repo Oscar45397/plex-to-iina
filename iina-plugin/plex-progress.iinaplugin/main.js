@@ -7,6 +7,8 @@
 //
 // The extension adds plexRatingKey=<id> to the file URL; Plex ignores it, and we use it to
 // know which library item is playing. The server address and token come from the same URL.
+// It also adds plexStart=<seconds or none>, where the file should start (see the on_load
+// hook).
 (() => {
   'use strict';
 
@@ -316,22 +318,38 @@
     playlist.play(index);
   }
 
-  // Before IINA opens a file from the playlist (the next episode, or Next or Previous
-  // Media), set where it starts and which tracks it plays. mpv would otherwise keep the
-  // previous file's settings: its start time and its track numbers, which can mean another
-  // language in this file. Files the extension opens replace the playlist, so they're
-  // alone in it, and the extension has already chosen for them.
+  // Before IINA opens a file, set where it starts, and for a file from the playlist which
+  // tracks it plays. mpv runs this hook after it has loaded IINA's saved position for the
+  // file ("Resume last playback position"), so what's set here wins.
+  //
+  // Files the extension opens replace the playlist, so they're alone in it. The extension
+  // has chosen their tracks, and their start is in the link (mpv_start) and in the URL
+  // (plexStart). IINA sets the link's start while mpv is already opening the file, so a
+  // saved position for the same URL would load on top of it: set it again from the URL.
+  //
+  // Files from the playlist (the next episode, or Next or Previous Media) would otherwise
+  // keep the previous file's settings: its start time and its track numbers, which can
+  // mean another language in this file.
   mpv.addHook('on_load', 50, async (next) => {
     try {
-      await prepareFromPlaylist();
+      if (mpv.getNumber('playlist-count') < 2) startWhereLinked();
+      else await prepareFromPlaylist();
     } catch (err) {
       console.error(`Preparing the next file: ${err}`);
     }
     next();
   });
 
+  function startWhereLinked() {
+    const path = mpv.getString('path');
+    const it = parsePlexUrl(path, { quiet: true });
+    const start = it && linkedStart(path);
+    if (!start) return; // opened some other way, or by an older extension: leave it to IINA
+    mpv.set('start', start);
+    console.log(`Opening /library/metadata/${it.ratingKey}: start ${start === 'none' ? 'at the beginning' : `at ${Math.round(Number(start))} s`}, as linked`);
+  }
+
   async function prepareFromPlaylist() {
-    if (mpv.getNumber('playlist-count') < 2) return;
     const it = parsePlexUrl(mpv.getString('path'), { quiet: true });
     if (!it) return;
     const details = (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
@@ -604,6 +622,13 @@
 
   function ratingKeyOf(url) {
     return /[?&]plexRatingKey=(\d+)/.exec(url || '')?.[1] ?? null;
+  }
+
+  // The start the extension put in the URL: seconds, or 'none' for the beginning. Null
+  // when there's none or it isn't one of those.
+  function linkedStart(url) {
+    const value = /[?&]plexStart=([^&#]*)/.exec(url || '')?.[1] ?? '';
+    return value === 'none' || /^\d+(\.\d+)?$/.test(value) ? value : null;
   }
 
   function parseQuery(query) {

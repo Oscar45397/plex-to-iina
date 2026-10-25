@@ -307,12 +307,17 @@
     if (server.token) file.searchParams.set('X-Plex-Token', server.token);
     // Plex ignores this; the IINA plugin (iina-plugin/) reads it to report watch progress.
     file.searchParams.set('plexRatingKey', video.ratingKey);
+    // Where to start, in seconds, or 'none' for the beginning. IINA keeps mpv options per
+    // player window, so always set it; otherwise the next file would inherit the previous
+    // resume point. IINA sets mpv_start only after it has started opening the file, so its
+    // saved position for this URL ("Resume last playback position") can load on top of it;
+    // the IINA plugin reads plexStart from the URL and sets the start again after that.
+    const start = settings.resume && video.viewOffset > 0 ? String(video.viewOffset / 1000) : 'none';
+    file.searchParams.set('plexStart', start);
 
     const params = { url: file.href };
     if (settings.fullScreen) params.full_screen = '1';
-    // IINA keeps mpv options per player window, so always set start explicitly;
-    // otherwise the next file would inherit the previous resume point.
-    params.mpv_start = settings.resume && video.viewOffset > 0 ? String(video.viewOffset / 1000) : 'none';
+    params.mpv_start = start;
     // Read ahead until the buffer holds bufferGB of the file, kept in RAM. cache-secs is set
     // far beyond any film's length so size is the only limit: 5 GB is ~7 min of a 91 Mbps
     // remux, ~12 min at 55 Mbps, or a whole TV episode. Always sent, because IINA keeps

@@ -35,6 +35,13 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   loaded and the rest fills in the background, instead of waiting for IINA's cache
   setting (up to 10 seconds).
 
+### Fixed
+
+- IINA starts where Plex says, also when it remembers its own position for the file
+  (IINA's **Resume last playback position** setting). Before, IINA's position could win,
+  so starting from the beginning, or with resume off in the popup, could start elsewhere.
+  Needs the updated IINA plugin.
+
 ## [1.1.0] - 2026-10-15
 
 First public release.
