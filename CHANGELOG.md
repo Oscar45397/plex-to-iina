@@ -12,9 +12,19 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   most channels) and uses Plex's subtitle choice, so you rarely need to switch tracks
   in IINA, which makes it download its buffer again. On by default; turn it off in the
   popup to use Plex's audio choice.
+- Plays the next episode when one ends, across seasons. The IINA plugin adds it to IINA's
+  playlist, so IINA's Next Media reaches it too. It starts where you left off and keeps
+  the audio and subtitle languages you were watching in. IINA's **Play next item
+  automatically** setting turns this off.
+- Up Next: when the end credits start, a card shows the next episode and plays it after
+  10 seconds, or press **Watch Credits** to keep watching. Without Plex's credits marker,
+  the card shows in the last seconds and the episode plays to the end.
+- This needs the updated IINA plugin: install the new package and allow it to show
+  content over the video when IINA asks.
 
 ### Improved
 
+- Reaching the end credits marks an episode or movie as watched, even before 90%.
 - Rewinding plays from memory instead of downloading again: IINA keeps a fifth of the
   buffer size of what you just watched (1 GB at the 5 GB setting, about 90 seconds of
   a 4K remux).

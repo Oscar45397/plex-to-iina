@@ -2,7 +2,8 @@
 
 A browser extension that sends Plex Web's **Play** button to [IINA](https://iina.io)
 instead of the browser player. IINA streams the original file from your Plex Media
-Server, so nothing is transcoded, and an IINA plugin reports your progress back to Plex.
+Server, so nothing is transcoded. An IINA plugin reports your progress back to Plex
+and plays the next episode with an Up Next countdown.
 
 Works in Chrome and Safari on macOS, on `app.plex.tv` or your server's own Plex Web.
 
@@ -25,13 +26,24 @@ You need macOS, IINA 1.5 or later, and Chrome or Safari.
    **Always Allow on This Website** on your Plex page. If the extension isn't listed,
    turn on **Allow unsigned extensions** in Safari's developer settings.
 
-**IINA plugin** (progress sync)
+**IINA plugin** (progress sync, next episode)
 
 In IINA → Settings → Plugins, click **Install Local Package…** and choose
-[`iina-plugin/plex-progress.iinaplgz`](iina-plugin/plex-progress.iinaplgz).
+[`iina-plugin/plex-progress.iinaplgz`](iina-plugin/plex-progress.iinaplgz). Install it
+again the same way to update.
 
 Then press Play in Plex. The toolbar popup has the settings (resume, full screen, buffer
 size, track choice). **Option-click** Play to use Plex's own player.
+
+## Watching a series
+
+When an episode ends, the next one plays, starting where you left off and with the same
+audio and subtitle languages. When the end credits start, an **Up Next** card plays the
+next episode after 10 seconds; **Watch Credits** keeps you on this one.
+
+- Turn off autoplay: IINA → Settings → General → **Play next item automatically**.
+- Previous and next buttons in IINA's controls: IINA → Settings → UI → **Use left/right
+  button for: Previous / Next Media**.
 
 ## Performance
 
@@ -69,11 +81,14 @@ Each IINA window can use that much memory, plus a fifth more to make rewinding i
   See [Performance](#performance).
 - **Progress doesn't sync:** check that the plugin is installed and ticked in IINA, then
   play the item from Plex again.
+- **Up Next only in the last seconds:** the server hasn't found that show's credits.
+  Plex detects them on servers with Plex Pass (Settings → Library on the server).
 
 ## Known limits
 
 - Subtitles in separate files (such as an `.srt` next to the video) aren't passed to IINA.
 - Switching the audio or subtitle track in IINA makes it download its buffer again.
+- The Up Next buttons take a mouse click; they have no keyboard shortcut.
 - Only items from your own or shared libraries; Plex's free movies and TV play in Plex.
 - Plex Web updates can change its Play buttons, which may need an extension update.
 
