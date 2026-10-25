@@ -364,32 +364,46 @@
       <style>
         .box {
           position: fixed; z-index: 2147483646; width: 360px; max-width: calc(100vw - 32px);
-          box-sizing: border-box; padding: 14px 16px; border-radius: 10px; background: #1f2326;
-          color: #eceef0; font: 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); border: 1px solid #34383c;
+          box-sizing: border-box; padding: 16px 16px 14px; border-radius: 12px;
+          background: rgba(28, 30, 33, 0.96); color: #f5f5f7;
+          font: 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+          border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+          -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+          animation: in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
-        h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
-        ul { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow: auto; }
-        li { display: flex; gap: 12px; padding: 3px 0; border-top: 1px solid #2c3034; }
+        @keyframes in { from { opacity: 0; transform: translateY(-4px); } }
+        @media (prefers-reduced-motion: reduce) { .box { animation: none; } }
+        h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+        ul {
+          list-style: none; margin: 0 0 10px; padding: 2px 10px; max-height: 220px; overflow: auto;
+          border-radius: 8px; background: rgba(255, 255, 255, 0.05);
+        }
+        li { display: flex; gap: 12px; padding: 5px 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
         li:first-child { border-top: 0; }
         .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .size { color: #9aa0a6; font-variant-numeric: tabular-nums; }
-        p { margin: 4px 0; color: #9aa0a6; }
+        .size { color: #a1a1a6; font-variant-numeric: tabular-nums; }
+        p { margin: 4px 0; color: #a1a1a6; font-size: 12px; }
         .warn { color: #f2b35b; }
         .error { color: #ff8a80; }
-        .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+        .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
         button {
-          font: inherit; font-weight: 600; border-radius: 6px; padding: 6px 14px; cursor: pointer;
-          border: 1px solid #44494e; background: transparent; color: inherit;
+          font: inherit; font-weight: 600; border-radius: 7px; padding: 6px 14px; cursor: pointer;
+          border: 0; background: rgba(255, 255, 255, 0.1); color: inherit;
         }
-        button.primary { background: #e5a00d; border-color: #e5a00d; color: #1f2326; }
+        button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+        button.primary { background: #e5a00d; color: #1d1d1f; }
+        button.primary:hover:not(:disabled) { background: #f0ac1a; }
         button:disabled { opacity: 0.5; cursor: default; }
         button:focus-visible { outline: 2px solid #e5a00d; outline-offset: 2px; }
-        .keep { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; color: #eceef0; cursor: pointer; }
+        .keep {
+          display: flex; gap: 9px; align-items: flex-start; margin: 12px 0 0; padding: 9px 10px;
+          border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: #f5f5f7; cursor: pointer;
+        }
         .keep[hidden] { display: none; }
         .keep input { margin: 3px 0 0; accent-color: #e5a00d; }
-        .keep small { display: block; color: #9aa0a6; }
-        button.link { border: 0; padding: 0; background: none; color: #e5a00d; }
+        .keep small { display: block; color: #a1a1a6; font-size: 12px; }
+        button.link { padding: 0; background: none; color: #e5a00d; }
+        button.link:hover { background: none; text-decoration: underline; }
       </style>
       <div class="box" role="dialog" aria-label="Download">
         <h2></h2>

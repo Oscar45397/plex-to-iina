@@ -575,38 +575,52 @@
   let toastEl = null;
   let toastTimer = 0;
 
+  // The first line is the headline; any further lines show smaller, below it.
   function toast(text, { error = false, sticky = false, long = false } = {}) {
     if (!toastEl) {
       toastEl = document.createElement('div');
+      toastEl.dataset.plexToIina = 'toast';
       toastEl.setAttribute('role', 'status');
-      Object.assign(toastEl.style, {
-        position: 'fixed',
-        right: '24px',
-        bottom: '24px',
-        zIndex: '2147483647',
-        maxWidth: '420px',
-        padding: '10px 14px',
-        borderRadius: '8px',
-        borderLeft: '3px solid #e5a00d',
-        color: '#fff',
-        font: '13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-        whiteSpace: 'pre-line',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
-        pointerEvents: 'none',
-        transition: 'opacity 0.2s',
-      });
+      const root = toastEl.attachShadow({ mode: 'closed' });
+      root.innerHTML = `
+        <style>
+          .toast {
+            position: fixed; right: 24px; bottom: 24px; z-index: 2147483647;
+            display: flex; gap: 10px; max-width: 420px; padding: 11px 15px 12px 12px;
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(28, 30, 33, 0.94); color: #f5f5f7;
+            font: 13px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+            -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+            pointer-events: none; opacity: 0; transform: translateY(8px);
+            transition: opacity 0.2s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+          }
+          .toast.on { opacity: 1; transform: none; }
+          .toast.error { background: rgba(92, 26, 26, 0.95); }
+          .mark { flex: none; width: 4px; border-radius: 2px; background: #e5a00d; }
+          .error .mark { background: #ff6b5e; }
+          .title { font-weight: 600; }
+          .details { margin-top: 2px; color: #b4b4b9; white-space: pre-line; }
+          .details:empty { display: none; }
+          @media (prefers-reduced-motion: reduce) { .toast { transform: none; } }
+        </style>
+        <div class="toast"><span class="mark"></span><div><div class="title"></div><div class="details"></div></div></div>`;
+      toastEl.parts = { box: root.querySelector('.toast'), title: root.querySelector('.title'), details: root.querySelector('.details') };
     }
     if (!toastEl.isConnected) document.documentElement.append(toastEl);
-    toastEl.textContent = text;
-    toastEl.style.background = error ? '#5c1a1a' : '#1f2326';
-    toastEl.style.opacity = '1';
+    const [title, ...details] = String(text).split('\n');
+    const { box } = toastEl.parts;
+    toastEl.parts.title.textContent = title;
+    toastEl.parts.details.textContent = details.join('\n');
+    box.classList.toggle('error', error);
+    requestAnimationFrame(() => box.classList.add('on'));
     clearTimeout(toastTimer);
     if (!sticky) toastTimer = setTimeout(hideToast, error ? 7000 : long ? 9000 : 4000);
   }
 
   function hideToast() {
     clearTimeout(toastTimer);
-    if (toastEl) toastEl.style.opacity = '0';
+    toastEl?.parts.box.classList.remove('on');
   }
 
   // For download.js, which runs after this file in the same content-script world.
