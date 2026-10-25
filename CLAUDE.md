@@ -1,8 +1,11 @@
 # Plex → IINA
 
 Browser extension (Chrome + Safari on macOS) that sends Plex Web's Play buttons to IINA,
-streaming the original file from Plex Media Server, plus an IINA plugin that reports
-playback progress back to Plex. README.md is the short user guide; how things work is
+streaming the original file from Plex Media Server, with a Download button for watching
+offline; a Safari companion app that opens IINA, downloads and shows the downloads
+library; and an IINA plugin that reports playback progress back to Plex, plays the next
+episode with Up Next, skips intros and credits, and plays downloaded copies from disk.
+README.md is the short user guide; how things work is
 explained in comments in the code.
 
 This is a **public repository** (github.com/s7zjg7r9wf-cell/plex-to-iina). Everything
@@ -89,12 +92,14 @@ for `docs`. Squash-merge with a Conventional Commit title.
 - Every `fix`, `feat`, `qol` and `perf` change gets a line in `CHANGELOG.md` under
   **Unreleased**, in the matching section, written for users rather than developers.
 - Versions follow SemVer: `fix` → patch, `feat`/`qol`/`perf` → minor, breaking → major.
-- A release bumps the version in all four places, moves **Unreleased** to the new version
+- A release bumps the version in all five places, moves **Unreleased** to the new version
   with the date, and is tagged `vX.Y.Z`:
   - `plex-to-iina/manifest.json`
   - `safari/manifest.json`
   - `iina-plugin/plex-progress.iinaplugin/Info.json`
   - `VERSION` in `iina-plugin/plex-progress.iinaplugin/main.js`
+  - `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`, +1) in the Xcode project
+    (`safari/Plex to IINA/Plex to IINA.xcodeproj/project.pbxproj`)
 
 ## Before committing code
 
