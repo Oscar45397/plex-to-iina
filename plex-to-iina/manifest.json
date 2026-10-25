@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Plex → IINA",
-  "version": "1.1.0",
-  "description": "Press Play in Plex Web and the original file streams in IINA: no transcoding, full-bitrate 4K remuxes, lossless multichannel audio.",
+  "version": "2.0.0",
+  "description": "Plex Web's Play opens the original file in IINA: no transcoding, synced progress, next episode, Skip Intro and offline downloads.",
   "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "permissions": ["storage", "downloads"],
   "background": {

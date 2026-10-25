@@ -6,68 +6,61 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-26
+
+Binge a series in IINA, take episodes with you offline, and a cleaner look throughout.
+Reinstall the IINA plugin for this version (see **Upgrading**).
+
 ### Added
 
-- Starts on the best audio track in your languages: the first of your languages that
-  the file has audio in, then lossless first and the most channels. If another language
-  has clearly better audio, the message after pressing Play says so. Plex's subtitle
-  choice is used, so you rarely need to switch tracks in IINA, which makes it download
-  its buffer again. Turn it off in the popup to use Plex's audio choice.
-- Subtitles for other languages: when the audio isn't in one of your languages and Plex
-  picked no subtitles, the best subtitles in your language are turned on (full before
-  forced-only, regular before SDH). Set your languages in the popup, or leave it empty
-  to use your browser's languages.
-- Plays the next episode when one ends, across seasons. The IINA plugin adds it to IINA's
-  playlist, so IINA's Next Media reaches it too. It starts where you left off and keeps
-  the audio and subtitle languages you were watching in. IINA's **Play next item
-  automatically** setting turns this off.
-- Up Next: when the end credits start, a card shows the next episode and plays it after
-  10 seconds, or press **Watch Credits** to keep watching. Without Plex's credits marker,
-  the card shows in the last seconds and the episode plays to the end.
-- **Skip Intro** and **Skip Credits** buttons where Plex has found the intro or credits
-  (servers with Plex Pass detect them), and **Skip Intros Automatically** in IINA's
-  Plugin menu.
-- These need the updated IINA plugin: install the new package and allow it to show
-  buttons over the video when IINA asks.
-- **Download** button next to Play: saves the original files of the next episodes, or a
-  film, to Downloads › Plex to IINA, to watch in IINA without the server, for example
-  away from home. Choose how many episodes next to the button, or the rest of the
-  season (the default is in the popup). It shows the total size first, skips files you already have and downloads one
-  at a time. In Safari the Plex to IINA app does the downloading, checks free disk space
-  and shows progress; run `safari/build.sh` again to update it.
-- The IINA plugin keeps your position and watched status for downloaded files and sends
-  them to Plex once the server can be reached again. Once you've watched a download, it
-  moves the file to the Trash; untick **Move Watched Downloads to Trash** in IINA's
-  Plugin menu to keep them. Install the updated plugin package and allow it file access.
-- Play in Plex Web plays your downloaded copy from disk when you have one: the same
-  file, without streaming, so nothing to buffer. So does any other Plex episode IINA
-  opens, such as the next one in its playlist. Needs the updated IINA plugin.
-- Keep ahead: tick **Keep … episodes ready** in the Download panel and the Plex to IINA
-  app keeps that many unwatched episodes of the show downloaded. Each time it can reach
-  your server (every 15 minutes, on wake and on network changes, also in the background
-  and after login) it downloads the next ones, refilling to the full number.
-- The Plex to IINA app (Safari) shows your downloads as a library, with posters, and
-  plays them in IINA with one click. Its window is cleaner and can be resized.
+- **Next episode:** when an episode ends, the next one plays, across seasons, where you
+  left off and in the same audio and subtitle languages. It's in IINA's playlist, so
+  Next Media reaches it too. IINA's **Play next item automatically** turns it off.
+- **Up Next:** when the end credits start, a card plays the next episode after 10
+  seconds; **Watch Credits** keeps you on this one.
+- **Skip Intro** and **Skip Credits** buttons where Plex has found them (Plex Pass
+  servers), and **Skip Intros Automatically** in IINA's Plugin menu.
+- **Download** button next to Play: saves a film, a number of episodes or the rest of the
+  season to Downloads › Plex to IINA, to watch without the server. It shows the total
+  size first, skips what you already have and downloads one at a time.
+- **Keep ahead:** the Plex to IINA app keeps a number of unwatched episodes of a show
+  downloaded, topping up whenever it can reach your server, also in the background.
+- Downloads play from disk, with nothing to buffer, when you press Play or IINA reaches
+  them in its playlist. Their progress goes to Plex once the server can be reached, and
+  watched downloads move to the Trash (untick **Move Watched Downloads to Trash** in
+  IINA's Plugin menu to keep them).
+- The Plex to IINA app's window (Safari) is a library of your downloads, with posters and
+  one-click Play.
+- **Your languages:** audio starts in the first of your languages the file has, lossless
+  and most channels first, with a note if another language has clearly better audio.
+  When the audio isn't in your language and Plex picked no subtitles, the best ones in
+  your language turn on.
+- An icon for the app and the extension.
 
 ### Improved
 
-- Reaching the end credits marks an episode or movie as watched, even before 90%.
-- Rewinding plays from memory instead of downloading again: IINA keeps a fifth of the
-  buffer size of what you just watched (1 GB at the 5 GB setting, about 90 seconds of
-  a 4K remux).
+- The popup is regrouped into Playback, Audio & subtitles and Downloads, with switches,
+  short hints and the version; settings that don't apply are dimmed.
+- The message after pressing Play and the Download panel have a cleaner, shared look.
+- Reaching the end credits marks an episode or film as watched, even before 90%.
+- Rewinding plays from memory: IINA keeps a fifth of the buffer size of what you just
+  watched.
 - After jumping to a part that isn't buffered yet, playback resumes once 2 seconds are
-  loaded and the rest fills in the background, instead of waiting for IINA's cache
-  setting (up to 10 seconds).
+  loaded, instead of waiting up to 10.
 
 ### Fixed
 
-- When Plex shows its own Resume Playback dialog, choosing **Resume from …** or
-  **Start from the beginning** now plays in IINA, from that point, instead of in Plex's
-  player. If the file can't be found, Plex plays it as before.
-- IINA starts where Plex says, also when it remembers its own position for the file
-  (IINA's **Resume last playback position** setting). Before, IINA's position could win,
-  so starting from the beginning, or with resume off in the popup, could start elsewhere.
-  Needs the updated IINA plugin.
+- Plex's own Resume Playback dialog (**Resume from …** or **Start from the beginning**)
+  now plays in IINA, from that point.
+- IINA starts where Plex says, also when IINA remembers its own position for the file.
+
+### Upgrading
+
+- **BREAKING:** install the new IINA plugin package and allow it to show buttons over
+  the video and to access files when IINA asks. With the old plugin, progress still
+  syncs but nothing else above works.
+- Chrome: click the reload button on the extension in `chrome://extensions`.
+- Safari: run `safari/build.sh` again, then restart Safari.
 
 ## [1.1.0] - 2026-10-15
 

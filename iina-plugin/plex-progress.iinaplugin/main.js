@@ -14,7 +14,7 @@
 
   const { core, console, event, http, menu, mpv, overlay, playlist, preferences } = iina;
 
-  const VERSION = '1.1.0';
+  const VERSION = '2.0.0';
   const PART_PATH = /^\/library\/parts\/(\d+)\//;
   const LIBRARY = 'com.plexapp.plugins.library';
   const SAMPLE_MS = 1000; // read the position this often, so a stop reports a fresh one
