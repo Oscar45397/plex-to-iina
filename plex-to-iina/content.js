@@ -31,7 +31,7 @@
 
   // Safari: background.js shows an "on" badge for this tab and forwards these notes to
   // the companion app's log (Console.app, subsystem local.plex-to-iina.app.Extension).
-  // Chrome has no background script, so they go nowhere. Never include the token.
+  // Chrome's service worker ignores them. Never include the token.
   function note(type, text = '') {
     Promise.resolve()
       .then(() => ext.runtime.sendMessage({ type, text }))
@@ -189,12 +189,15 @@
         handBack(button, null);
         return false;
       }
+      // Downloaded before (download.js)? Then IINA plays that copy from disk (see iinaUrl).
+      video.localPath = (await globalThis.plexToIina.findDownload?.(target.machineId, video.ratingKey)) ?? null;
       const { autoSubtitle, betterAudio, audio } = video.tracks;
       const languageOf = (stream) => LANGUAGES.displayName(LANGUAGES.ofStream(stream) ?? 'und');
       const notes = [
+        video.localPath && "From your download, if it's still there",
         autoSubtitle && `${languageOf(autoSubtitle)} subtitles on: the audio is ${languageOf(audio)}`,
         betterAudio && `Better audio in ${languageOf(betterAudio)}: ${audioLabel(betterAudio)}. Switch in IINA's Audio menu (it reloads the buffer).`,
-        server.relay && '⚠ Via Plex Relay: bandwidth is limited',
+        server.relay && !video.localPath && '⚠ Via Plex Relay: bandwidth is limited',
       ].filter(Boolean);
       note('log', `Found ${video.title} (${video.quality}) on ${new URL(server.uri).host}${notes.map((n) => `; ${n}`).join('')}`);
       await openExternal(iinaUrl(server, video, resume));
@@ -476,6 +479,11 @@
     const start = resume && video.viewOffset > 0 ? String(video.viewOffset / 1000) : 'none';
     file.searchParams.set('plexStart', start);
 
+    // A downloaded copy (download.js): the IINA plugin plays it from disk instead, if it's
+    // still there; same file, no streaming, so no buffering. As ~/…, so the Mac's user
+    // name never reaches the server; the plugin removes it before streaming anyway.
+    if (video.localPath) file.searchParams.set('plexLocal', video.localPath.replace(/^\/Users\/[^/]+\//, '~/'));
+
     const params = { url: file.href };
     if (settings.fullScreen) params.full_screen = '1';
     params.mpv_start = start;
@@ -505,8 +513,8 @@
   }
 
   // In Safari, the extension's companion app opens IINA directly, which avoids Safari's
-  // "Allow this page to open IINA?" question on every play. Chrome has no background
-  // script, so the message fails and we fall back to a link click.
+  // "Allow this page to open IINA?" question on every play. In Chrome nothing answers
+  // this message, so we fall back to a link click.
   async function openExternal(url) {
     try {
       // The app normally answers within a second. If Safari couldn't start it (this happens
@@ -518,7 +526,7 @@
       if (reply?.opened) return;
       note('log', 'Companion app did not open IINA, trying a link');
     } catch {
-      // Nothing listening (Chrome): use the link below.
+      // No answer (Chrome): use the link below.
     }
     // A detached link click opens the external app without Plex's router seeing it.
     const link = document.createElement('a');
@@ -600,4 +608,7 @@
     clearTimeout(toastTimer);
     if (toastEl) toastEl.style.opacity = '0';
   }
+
+  // For download.js, which runs after this file in the same content-script world.
+  globalThis.plexToIina = { ext, note, toast, resolveServer, plexGet, parsePlexLink, titleOf };
 })();

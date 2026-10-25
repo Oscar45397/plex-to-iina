@@ -8,3 +8,4 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 build/
+__pycache__/

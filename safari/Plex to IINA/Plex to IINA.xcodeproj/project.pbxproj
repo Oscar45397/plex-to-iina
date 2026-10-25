@@ -23,6 +23,12 @@
 		619DDA8430802A1E00FC8E08 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 619DDA7F30802A1E00FC8E08 /* manifest.json */; };
 		619DDA8530802A1E00FC8E08 /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = 619DDA8030802A1E00FC8E08 /* content.js */; };
 		619DDA8F30802A1E00FC8E08 /* languages.js in Resources */ = {isa = PBXBuildFile; fileRef = 619DDA8E30802A1E00FC8E08 /* languages.js */; };
+		D0F0D1A230802A1E00FC8E08 /* DownloadFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */; };
+		D0F0D1A330802A1E00FC8E08 /* DownloadFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */; };
+		D0F0D1A530802A1E00FC8E08 /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A430802A1E00FC8E08 /* Downloads.swift */; };
+		D0F0D1A730802A1E00FC8E08 /* download.js in Resources */ = {isa = PBXBuildFile; fileRef = D0F0D1A630802A1E00FC8E08 /* download.js */; };
+		D0F0D1A930802A1E00FC8E08 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A830802A1E00FC8E08 /* Library.swift */; };
+		D0F0D1AB30802A1E00FC8E08 /* KeepAhead.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1AA30802A1E00FC8E08 /* KeepAhead.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +73,11 @@
 		619DDA7F30802A1E00FC8E08 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../extension/manifest.json; sourceTree = "<group>"; };
 		619DDA8030802A1E00FC8E08 /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = content.js; path = ../../extension/content.js; sourceTree = "<group>"; };
 		619DDA8E30802A1E00FC8E08 /* languages.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = languages.js; path = ../../extension/languages.js; sourceTree = "<group>"; };
+		D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFolder.swift; sourceTree = "<group>"; };
+		D0F0D1A430802A1E00FC8E08 /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
+		D0F0D1A630802A1E00FC8E08 /* download.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = download.js; path = ../../extension/download.js; sourceTree = "<group>"; };
+		D0F0D1A830802A1E00FC8E08 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		D0F0D1AA30802A1E00FC8E08 /* KeepAhead.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepAhead.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +99,7 @@
 			children = (
 				619DDA5130802A1D00FC8E08 /* Plex to IINA */,
 				619DDA6E30802A1E00FC8E08 /* Plex to IINA Extension */,
+				D0F0D1A030802A1E00FC8E08 /* Shared */,
 				619DDA5030802A1D00FC8E08 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -106,6 +118,9 @@
 			children = (
 				619DDA5230802A1D00FC8E08 /* AppDelegate.swift */,
 				619DDA5E30802A1D00FC8E08 /* ViewController.swift */,
+				D0F0D1A430802A1E00FC8E08 /* Downloads.swift */,
+				D0F0D1A830802A1E00FC8E08 /* Library.swift */,
+				D0F0D1AA30802A1E00FC8E08 /* KeepAhead.swift */,
 				619DDA6030802A1D00FC8E08 /* Main.storyboard */,
 				619DDA6330802A1D00FC8E08 /* Assets.xcassets */,
 				619DDA6530802A1D00FC8E08 /* Info.plist */,
@@ -144,10 +159,19 @@
 				619DDA7F30802A1E00FC8E08 /* manifest.json */,
 				619DDA8030802A1E00FC8E08 /* content.js */,
 				619DDA8E30802A1E00FC8E08 /* languages.js */,
+				D0F0D1A630802A1E00FC8E08 /* download.js */,
 			);
 			name = Resources;
 			path = "Plex to IINA Extension";
 			sourceTree = SOURCE_ROOT;
+		};
+		D0F0D1A030802A1E00FC8E08 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
@@ -245,6 +269,7 @@
 				619DDA8130802A1E00FC8E08 /* popup.js in Resources */,
 				619DDA8530802A1E00FC8E08 /* content.js in Resources */,
 				619DDA8F30802A1E00FC8E08 /* languages.js in Resources */,
+				D0F0D1A730802A1E00FC8E08 /* download.js in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -255,12 +280,17 @@
 			files = (
 				619DDA5F30802A1D00FC8E08 /* ViewController.swift in Sources */,
 				619DDA5330802A1D00FC8E08 /* AppDelegate.swift in Sources */,
+				D0F0D1A530802A1E00FC8E08 /* Downloads.swift in Sources */,
+				D0F0D1A930802A1E00FC8E08 /* Library.swift in Sources */,
+				D0F0D1AB30802A1E00FC8E08 /* KeepAhead.swift in Sources */,
+				D0F0D1A230802A1E00FC8E08 /* DownloadFolder.swift in Sources */,
 			);
 		};
 		619DDA6630802A1E00FC8E08 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
 				619DDA7030802A1E00FC8E08 /* SafariWebExtensionHandler.swift in Sources */,
+				D0F0D1A330802A1E00FC8E08 /* DownloadFolder.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
@@ -417,6 +447,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readonly;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -451,6 +482,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readonly;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -488,6 +520,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -530,6 +563,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;

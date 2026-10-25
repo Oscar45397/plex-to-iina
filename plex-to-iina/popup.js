@@ -12,8 +12,10 @@ const DEFAULTS = {
 // The browser's languages, shown when the field is empty.
 const languageNames = (codes) => codes.map(LANGUAGES.displayName).join(', ');
 document.getElementById('myLanguages').placeholder = languageNames(LANGUAGES.parse('')) || 'English';
+// Keep in sync with DEFAULTS in download.js.
+const DOWNLOAD_DEFAULTS = { downloadButton: true, downloadCount: 3 };
 
-ext.storage.sync.get(DEFAULTS).then((settings) => {
+ext.storage.sync.get({ ...DEFAULTS, ...DOWNLOAD_DEFAULTS }).then((settings) => {
   for (const [key, value] of Object.entries(settings)) {
     const input = document.getElementById(key);
     if (!input) continue;

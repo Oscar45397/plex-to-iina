@@ -676,4 +676,311 @@
     const query = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
     return `${it.origin}/photo/:/transcode?${query}`;
   }
+
+  // ---- Downloaded files ----------------------------------------------------------
+  //
+  // The extension's Download button saves files as "… {plex-<server>-<ratingKey>}.mkv",
+  // where <server> is the first 8 characters of the server's machine identifier. While one
+  // of those plays, keep its position and watched state in this plugin's preferences, and
+  // send them to Plex whenever the server answers: right away at home, otherwise the next
+  // time a downloaded or streamed file from that server plays in IINA.
+  //
+  // A local file carries no server address or token, so remember both from the last file
+  // streamed from each server. Progress of downloads therefore syncs only for servers
+  // you've streamed from in IINA at least once.
+  //
+  // Once you've watched a download (90%, as Plex counts it) and it closes, move it to the
+  // Trash, unless "Move Watched Downloads to Trash" is unticked in the Plugin menu.
+  //
+  // Just before mpv opens a Plex stream, play a downloaded copy of that item from disk
+  // instead, if there is one: Play in Plex Web adds its location as plexLocal=<path>
+  // (content.js), and for other streams, such as the next episode in IINA's playlist, look
+  // for the item's tag in ~/Downloads/Plex to IINA. Progress then goes to Plex as for any
+  // stream.
+
+  const DOWNLOAD_TAG = /\{plex-([0-9a-f]{8})-(\d+)\}\.[A-Za-z0-9]+$/;
+  const SAVE_EVERY_MS = 30000; // while playing, save (and try to send) this often
+  const KEEP_MS = 180 * 24 * 3600 * 1000; // give up on progress that couldn't be sent for this long
+  const SERVERS_KEY = 'downloadServers'; // { "<server>": { origin, token } }
+  const PENDING_KEY = 'downloadProgress'; // { "<server>-<ratingKey>": { …, time, duration, watched, at } }
+  const TRASH_KEY = 'trashWatchedDownloads'; // on unless set to false
+
+  // The downloaded file playing in this window, or null.
+  let download = null;
+  const syncing = new Set(); // servers with requests on their way
+  const localCopies = new Map(); // stream URL → the downloaded file playing instead
+
+  mpv.addHook('on_load', 40, () => {
+    const url = mpv.getString('stream-open-filename') || '';
+    const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)\?([^#]*)$/i.exec(url);
+    if (!stream || !PART_PATH.test(stream[2])) return;
+    const query = parseQuery(stream[3]);
+    const local = (query.plexLocal && existingCopy(query.plexLocal, query.plexRatingKey))
+      || downloadedCopy(stream[1], query.plexRatingKey);
+    if (local) {
+      localCopies.set(url, local);
+      mpv.set('stream-open-filename', local);
+      mpv.set('cache', 'auto'); // mpv's default: no read-ahead into memory for a file on disk
+      console.log(`Playing /library/metadata/${query.plexRatingKey} from its download`);
+    } else if (query.plexLocal) {
+      // Gone, for example moved to the Trash once watched: stream, without the local path.
+      mpv.set('stream-open-filename', url.replace(/([?&])plexLocal=[^&#]*&?/, '$1').replace(/[?&]$/, ''));
+    }
+  });
+
+  // A download of this item in ~/Downloads/Plex to IINA (or one folder down), found by its
+  // tag; null if there's none. The tag needs the server's ID, known once you've streamed
+  // from it (rememberServer).
+  function downloadedCopy(origin, ratingKey) {
+    if (!/^\d+$/.test(ratingKey || '')) return null;
+    const servers = loadPref(SERVERS_KEY);
+    const server = Object.keys(servers).find((id) => servers[id].origin === origin);
+    if (!server) return null;
+    const tag = `{plex-${server}-${ratingKey}}`;
+    try {
+      const root = iina.utils.resolvePath('~/Downloads/Plex to IINA');
+      const folders = [root];
+      for (const entry of iina.file.list(root, {}) || []) {
+        if (entry.isDir && !entry.filename.startsWith('.')) folders.push(`${root}/${entry.filename}`);
+      }
+      for (const folder of folders) {
+        const hit = (iina.file.list(folder, {}) || []).find((entry) => !entry.isDir
+          && DOWNLOAD_TAG.test(entry.filename) && entry.filename.includes(tag));
+        if (hit) return `${folder}/${hit.filename}`;
+      }
+    } catch {
+      // No such folder: nothing downloaded.
+    }
+    return null;
+  }
+
+  // The absolute path of a downloaded file of this item that's still there, or null. Only
+  // tagged files of the same item, so a link can't make IINA open anything else.
+  function existingCopy(path, ratingKey) {
+    const tag = DOWNLOAD_TAG.exec(path.split('/').pop());
+    if (!tag || tag[2] !== ratingKey) return null;
+    try {
+      const absolute = iina.utils.resolvePath(path);
+      return absolute && iina.file.exists(absolute) ? absolute : null;
+    } catch {
+      return null;
+    }
+  }
+
+  event.on('iina.file-loaded', (url) => {
+    endDownload();
+    const path = mpv.getString('path') || url || '';
+    const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)(?:\?([^#]*))?/i.exec(path);
+    if (stream) {
+      if (PART_PATH.test(stream[2])) rememberServer(stream[1], parseQuery(stream[3] || '')['X-Plex-Token'] || '');
+      const local = localCopies.get(path);
+      localCopies.delete(path);
+      // Playing a download instead of the stream: the stream code reports progress; this
+      // section only moves the file to the Trash once watched.
+      if (local) trackDownload(local, true);
+      return;
+    }
+    trackDownload(path, false);
+  });
+
+  function trackDownload(path, viaStream) {
+    const match = DOWNLOAD_TAG.exec(decode(path.split('/').pop()));
+    if (!match) return;
+    download = {
+      path: localPath(path),
+      server: match[1],
+      ratingKey: match[2],
+      viaStream,
+      position: 0,
+      duration: 0,
+      started: false,
+      watched: false,
+      lastSave: Date.now(),
+      sampler: null,
+    };
+    const current = download;
+    current.sampler = setInterval(() => sampleDownload(current), SAMPLE_MS);
+    if (viaStream) return;
+    console.log(`Downloaded file of /library/metadata/${current.ratingKey}; progress syncs with Plex when the server answers`);
+    syncDownloads(current.server);
+  }
+
+  event.on('mpv.playback-restart', () => {
+    if (download) download.started = true;
+  });
+  event.on('mpv.pause.changed', () => {
+    if (download && download.started && mpv.getFlag('pause')) saveDownload(download);
+  });
+  event.on('iina.window-will-close', endDownload);
+  event.on('mpv.end-file', endDownload);
+
+  function sampleDownload(it) {
+    if (download !== it || !it.started) return;
+    const position = core.status.position;
+    const duration = core.status.duration;
+    if (typeof position === 'number' && position >= 0) it.position = position;
+    if (typeof duration === 'number' && duration > 0) it.duration = duration;
+    if (Date.now() - it.lastSave >= SAVE_EVERY_MS) saveDownload(it);
+  }
+
+  function endDownload() {
+    if (!download) return;
+    const done = download;
+    download = null;
+    clearInterval(done.sampler);
+    // The last sample is at most a second old; the player may already be closing.
+    saveDownload(done);
+    if (done.watched && trashWatched()) trashDownload(done);
+  }
+
+  // The progress is already saved, so Plex still learns it was watched.
+  function trashDownload(it) {
+    if (!it.path) return;
+    try {
+      iina.file.trash(it.path);
+      console.log(`Moved the watched download of /library/metadata/${it.ratingKey} to the Trash`);
+      core.osd('Watched: moved the download to the Trash');
+    } catch (err) {
+      console.warn(`Couldn't move the watched download to the Trash: ${err}`);
+    }
+  }
+
+  // An absolute path, from a path or a file:// URL; null for anything else.
+  function localPath(path) {
+    if (path.startsWith('file://')) return decode(path.slice('file://'.length).replace(/^localhost/, ''));
+    return path.startsWith('/') ? path : null;
+  }
+
+  function trashWatched() {
+    return preferences.get(TRASH_KEY) !== false;
+  }
+
+  // Plugin menu: a checkbox for moving watched downloads to the Trash.
+  const trashItem = menu.item('Move Watched Downloads to Trash', () => {
+    const on = !trashWatched();
+    preferences.set(TRASH_KEY, on);
+    preferences.sync();
+    trashItem.selected = on;
+    menu.forceUpdate();
+  }, { selected: trashWatched() });
+  menu.addItem(trashItem);
+  // Each window has its own menu item; catch up with a change made in another window.
+  event.on('iina.window-main.changed', () => {
+    trashItem.selected = trashWatched();
+  });
+
+  // Store this file's progress, then try to send everything waiting for its server.
+  function saveDownload(it) {
+    it.lastSave = Date.now();
+    if (!it.started) return;
+    if (it.duration && it.position / it.duration >= WATCHED_AT) it.watched = true;
+    if (it.viaStream) return; // reported to Plex as a stream
+    const pending = loadPref(PENDING_KEY);
+    const id = `${it.server}-${it.ratingKey}`;
+    const before = pending[id];
+    pending[id] = {
+      server: it.server,
+      ratingKey: it.ratingKey,
+      time: Math.round(it.position * 1000),
+      duration: Math.round(it.duration * 1000),
+      // Once watched, stay watched until Plex knows, even if you rewind afterwards.
+      watched: it.watched || Boolean(before && before.watched),
+      at: Date.now(),
+    };
+    savePref(PENDING_KEY, pending);
+    syncDownloads(it.server);
+  }
+
+  function rememberServer(origin, token) {
+    plexCall(origin, token, '/identity', {}).then((res) => {
+      const id = String(jsonOf(res)?.MediaContainer?.machineIdentifier || '').toLowerCase();
+      if (!/^[0-9a-f]{8}/.test(id)) return;
+      const servers = loadPref(SERVERS_KEY);
+      const server = id.slice(0, 8);
+      const known = servers[server];
+      if (!known || known.origin !== origin || known.token !== token) {
+        servers[server] = { origin, token };
+        savePref(SERVERS_KEY, servers);
+      }
+      syncDownloads(server);
+    });
+  }
+
+  // Send the waiting progress of one server's downloads: watched ones are marked watched,
+  // the others get their resume point. Entries are removed once Plex has them.
+  function syncDownloads(server) {
+    const target = loadPref(SERVERS_KEY)[server];
+    if (!target || syncing.has(server)) return;
+    const pending = loadPref(PENDING_KEY);
+    const waiting = Object.keys(pending).filter((id) => pending[id].server === server);
+    if (!waiting.length) return;
+    syncing.add(server);
+    const sent = waiting.map((id) => {
+      const entry = pending[id];
+      const params = { key: entry.ratingKey, identifier: LIBRARY };
+      const request = entry.watched
+        ? plexCall(target.origin, target.token, '/:/scrobble', params)
+        : plexCall(target.origin, target.token, '/:/progress', { ...params, time: String(entry.time), state: 'stopped' });
+      return request.then((res) => (res ? { id, at: entry.at } : null));
+    });
+    Promise.all(sent).then((results) => {
+      syncing.delete(server);
+      const done = results.filter(Boolean);
+      if (!done.length) {
+        console.log(`Plex server ${server} didn't answer; keeping progress of ${waiting.length} downloaded file(s) for later`);
+        return;
+      }
+      const now = loadPref(PENDING_KEY);
+      for (const { id, at } of done) {
+        if (now[id] && now[id].at === at) delete now[id]; // unless it changed meanwhile
+      }
+      for (const id of Object.keys(now)) {
+        if (Date.now() - now[id].at > KEEP_MS) delete now[id];
+      }
+      savePref(PENDING_KEY, now);
+      console.log(`Sent progress of ${done.length} downloaded file(s) to Plex server ${server}`);
+      if (download && download.server === server && !download.announced) {
+        download.announced = true;
+        core.osd('Syncing progress with Plex');
+      }
+    });
+  }
+
+  // Resolves to the response, or null. Never logs the URL: it would include the token.
+  function plexCall(origin, token, path, params) {
+    if (token) params['X-Plex-Token'] = token;
+    let request;
+    try {
+      request = http.get(origin + path, { params, headers: plexHeaders() });
+    } catch (err) {
+      console.error(`${path}: ${err}`);
+      return Promise.resolve(null);
+    }
+    if (!request) return Promise.resolve(null);
+    return request.then((res) => res, () => null);
+  }
+
+  function jsonOf(res) {
+    if (!res) return null;
+    if (res.data && typeof res.data === 'object') return res.data;
+    try {
+      return JSON.parse(res.text);
+    } catch {
+      return null;
+    }
+  }
+
+  function loadPref(key) {
+    try {
+      const value = JSON.parse(preferences.get(key) || '{}');
+      return value && typeof value === 'object' ? value : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function savePref(key, value) {
+    preferences.set(key, JSON.stringify(value));
+    preferences.sync();
+  }
 })();

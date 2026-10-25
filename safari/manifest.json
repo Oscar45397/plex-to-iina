@@ -17,7 +17,7 @@
         "https://app.plex.tv/*",
         "*://*/web/index.html*"
       ],
-      "js": ["languages.js", "content.js"],
+      "js": ["languages.js", "content.js", "download.js"],
       "run_at": "document_start"
     }
   ]
