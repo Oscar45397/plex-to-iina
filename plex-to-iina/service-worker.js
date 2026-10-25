@@ -12,7 +12,7 @@ const QUEUE_KEY = 'downloadQueue';
 const STOP_REASONS = new Set(['FILE_NO_SPACE', 'FILE_TOO_LARGE', 'USER_CANCELED']);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const handler = { 'download-check': check, download: enqueue }[message?.type];
+  const handler = { 'download-check': check, 'download-find': find, download: enqueue }[message?.type];
   if (!handler) return false; // the Play button's messages: nothing to do in Chrome
   handler(message)
     .then(sendResponse)
@@ -39,7 +39,6 @@ chrome.downloads.onChanged.addListener((delta) => {
 async function check({ tags }) {
   const queue = await load();
   const waiting = new Set([queue.current?.job, ...queue.jobs].filter(Boolean).map((job) => job.tag));
-  const pattern = (tag) => `${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.[^/]+$`;
   await Promise.all(tags.map((tag) => chrome.downloads.search({ filenameRegex: pattern(tag) })));
   await new Promise((resolve) => setTimeout(resolve, 300));
   const existing = [];
@@ -53,6 +52,22 @@ async function check({ tags }) {
   }
   // Chrome can't tell how much disk space is free.
   return { existing, freeBytes: null };
+}
+
+// For the Play button: the path of a finished download that's still on disk, or null.
+async function find({ tag }) {
+  const known = await chrome.downloads.search({ filenameRegex: pattern(tag), state: 'complete' });
+  if (!known.length) return { path: null };
+  await new Promise((resolve) => setTimeout(resolve, 300)); // let Chrome notice deleted files
+  const found = await chrome.downloads.search({
+    filenameRegex: pattern(tag), state: 'complete', exists: true, orderBy: ['-startTime'],
+  });
+  return { path: found[0]?.filename ?? null };
+}
+
+// Matches a file name ending in this tag and an extension.
+function pattern(tag) {
+  return `${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.[^/]+$`;
 }
 
 async function enqueue({ jobs }) {

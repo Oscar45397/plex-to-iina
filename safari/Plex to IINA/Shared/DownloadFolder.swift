@@ -40,18 +40,28 @@ enum DownloadFolder {
         return String(fileName[range])
     }
 
-    /// Tags of the files already in the folder or one folder down (shows).
-    static func existingTags() -> Set<String> {
-        let files = FileManager.default.enumerator(
+    /// The tagged files in the folder or one folder down (shows).
+    static func files() -> [URL] {
+        let walker = FileManager.default.enumerator(
             at: url,
-            includingPropertiesForKeys: nil,
+            includingPropertiesForKeys: [.fileSizeKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
-        var tags = Set<String>()
-        while let file = files?.nextObject() as? URL {
-            if let tag = tag(in: file.lastPathComponent) { tags.insert(tag) }
+        var found: [URL] = []
+        while let file = walker?.nextObject() as? URL {
+            if tag(in: file.lastPathComponent) != nil { found.append(file) }
         }
-        return tags
+        return found
+    }
+
+    /// Tags of the files already downloaded.
+    static func existingTags() -> Set<String> {
+        Set(files().compactMap { tag(in: $0.lastPathComponent) })
+    }
+
+    /// The downloaded file with this tag, if there is one.
+    static func file(withTag wanted: String) -> URL? {
+        files().first { tag(in: $0.lastPathComponent) == wanted }
     }
 
     /// Where a file named by the extension goes, or nil if the name isn't one it makes:

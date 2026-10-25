@@ -78,6 +78,8 @@ and the rest download one at a time, so the first episodes are ready first.
   tells Plex when the server can be reached again. It reaches the server the way your
   last stream from it did, so stream from that server in IINA at least once, and keep
   the `{plex-…}` tag in the file names.
+- **Play** in Plex Web plays your downloaded copy from disk when there is one, so there's
+  nothing to buffer. Progress goes to Plex as when streaming.
 - **After watching:** once you've watched a downloaded episode or film in IINA, the
   plugin moves the file to the Trash. To keep downloads, untick **Move Watched Downloads
   to Trash** in IINA's Plugin menu. The plugin asks for file access for this when you

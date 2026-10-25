@@ -104,9 +104,11 @@
         handBack(button, null);
         return;
       }
-      note('log', `Found ${video.title} (${video.quality}) on ${new URL(server.uri).host}${server.relay ? ' via relay' : ''}`);
+      // Downloaded before (download.js)? Then IINA plays that copy from disk (see iinaUrl).
+      video.localPath = (await globalThis.plexToIina.findDownload?.(target.machineId, video.ratingKey)) ?? null;
+      note('log', `Found ${video.title} (${video.quality}) on ${new URL(server.uri).host}${server.relay ? ' via relay' : ''}${video.localPath ? ', playing the download' : ''}`);
       await openExternal(iinaUrl(server, video));
-      toast(`▶ ${video.title} in IINA\n${video.quality}${server.relay ? '\n⚠ Via Plex Relay: bandwidth is limited' : ''}`);
+      toast(`▶ ${video.title} in IINA\n${video.quality}${video.localPath ? "\nFrom your download, if it's still there" : server.relay ? '\n⚠ Via Plex Relay: bandwidth is limited' : ''}`);
     } catch (err) {
       console.warn('[Plex → IINA]', err);
       note('log', `Failed: ${err.message}`);
@@ -307,6 +309,11 @@
     if (server.token) file.searchParams.set('X-Plex-Token', server.token);
     // Plex ignores this; the IINA plugin (iina-plugin/) reads it to report watch progress.
     file.searchParams.set('plexRatingKey', video.ratingKey);
+
+    // A downloaded copy (download.js): the IINA plugin plays it from disk instead, if it's
+    // still there; same file, no streaming, so no buffering. As ~/…, so the Mac's user
+    // name never reaches the server; the plugin removes it before streaming anyway.
+    if (video.localPath) file.searchParams.set('plexLocal', video.localPath.replace(/^\/Users\/[^/]+\//, '~/'));
 
     const params = { url: file.href };
     if (settings.fullScreen) params.full_screen = '1';

@@ -238,6 +238,10 @@
   //
   // Once you've watched a download (90%, as Plex counts it) and it closes, move it to the
   // Trash, unless "Move Watched Downloads to Trash" is unticked in the Plugin menu.
+  //
+  // Play in Plex Web adds plexLocal=<path> to the stream URL when you've downloaded the
+  // item (content.js). Just before mpv opens the stream, play that file from disk instead,
+  // if it's still there. Progress then goes to Plex as for any stream.
 
   const DOWNLOAD_TAG = /\{plex-([0-9a-f]{8})-(\d+)\}\.[A-Za-z0-9]+$/;
   const SAVE_EVERY_MS = 30000; // while playing, save (and try to send) this often
@@ -249,6 +253,38 @@
   // The downloaded file playing in this window, or null.
   let download = null;
   const syncing = new Set(); // servers with requests on their way
+  const localCopies = new Map(); // stream URL → the downloaded file playing instead
+
+  mpv.addHook('on_load', 40, () => {
+    const url = mpv.getString('stream-open-filename') || '';
+    const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)\?([^#]*)$/i.exec(url);
+    if (!stream || !PART_PATH.test(stream[2])) return;
+    const query = parseQuery(stream[3]);
+    if (!query.plexLocal) return;
+    const local = existingCopy(query.plexLocal, query.plexRatingKey);
+    if (local) {
+      localCopies.set(url, local);
+      mpv.set('stream-open-filename', local);
+      mpv.set('cache', 'auto'); // mpv's default: no read-ahead into memory for a file on disk
+      console.log(`Playing /library/metadata/${query.plexRatingKey} from its download`);
+    } else {
+      // Gone, for example moved to the Trash once watched: stream, without the local path.
+      mpv.set('stream-open-filename', url.replace(/([?&])plexLocal=[^&#]*&?/, '$1').replace(/[?&]$/, ''));
+    }
+  });
+
+  // The absolute path of a downloaded file of this item that's still there, or null. Only
+  // tagged files of the same item, so a link can't make IINA open anything else.
+  function existingCopy(path, ratingKey) {
+    const tag = DOWNLOAD_TAG.exec(path.split('/').pop());
+    if (!tag || tag[2] !== ratingKey) return null;
+    try {
+      const absolute = iina.utils.resolvePath(path);
+      return absolute && iina.file.exists(absolute) ? absolute : null;
+    } catch {
+      return null;
+    }
+  }
 
   event.on('iina.file-loaded', (url) => {
     endDownload();
@@ -256,14 +292,24 @@
     const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)(?:\?([^#]*))?/i.exec(path);
     if (stream) {
       if (PART_PATH.test(stream[2])) rememberServer(stream[1], parseQuery(stream[3] || '')['X-Plex-Token'] || '');
+      const local = localCopies.get(path);
+      localCopies.delete(path);
+      // Playing a download instead of the stream: the stream code reports progress; this
+      // section only moves the file to the Trash once watched.
+      if (local) trackDownload(local, true);
       return;
     }
+    trackDownload(path, false);
+  });
+
+  function trackDownload(path, viaStream) {
     const match = DOWNLOAD_TAG.exec(decode(path.split('/').pop()));
     if (!match) return;
     download = {
       path: localPath(path),
       server: match[1],
       ratingKey: match[2],
+      viaStream,
       position: 0,
       duration: 0,
       started: false,
@@ -271,11 +317,12 @@
       lastSave: Date.now(),
       sampler: null,
     };
-    console.log(`Downloaded file of /library/metadata/${download.ratingKey}; progress syncs with Plex when the server answers`);
     const current = download;
     current.sampler = setInterval(() => sampleDownload(current), SAMPLE_MS);
+    if (viaStream) return;
+    console.log(`Downloaded file of /library/metadata/${current.ratingKey}; progress syncs with Plex when the server answers`);
     syncDownloads(current.server);
-  });
+  }
 
   event.on('mpv.playback-restart', () => {
     if (download) download.started = true;
@@ -346,6 +393,7 @@
     it.lastSave = Date.now();
     if (!it.started) return;
     if (it.duration && it.position / it.duration >= WATCHED_AT) it.watched = true;
+    if (it.viaStream) return; // reported to Plex as a stream
     const pending = loadPref(PENDING_KEY);
     const id = `${it.server}-${it.ratingKey}`;
     const before = pending[id];

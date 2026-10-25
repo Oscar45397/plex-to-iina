@@ -261,7 +261,7 @@
     if (!part?.key) return null;
     const extension = (/\.([a-z0-9]{2,5})$/i.exec(part.file ?? '')?.[1] ?? part.container ?? media.container ?? 'mkv')
       .toLowerCase();
-    const tag = `{plex-${machineId.slice(0, 8).toLowerCase()}-${item.ratingKey}}`;
+    const tag = tagFor(machineId, item.ratingKey);
     let path;
     if (item.type === 'episode') {
       const show = cleanName(item.grandparentTitle) || 'TV';
@@ -283,6 +283,25 @@
       show: item.grandparentTitle ?? '',
     };
   }
+
+  function tagFor(machineId, ratingKey) {
+    return `{plex-${machineId.slice(0, 8).toLowerCase()}-${ratingKey}}`;
+  }
+
+  // For the Play button (content.js): the path of a finished download of this item, so
+  // IINA can play it from disk instead of streaming; null if there's none. Play never
+  // waits long for this.
+  shared.findDownload = async (machineId, ratingKey) => {
+    try {
+      const reply = await Promise.race([
+        ext.runtime.sendMessage({ type: 'download-find', tag: tagFor(machineId, ratingKey) }),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+      return typeof reply?.path === 'string' && reply.path.startsWith('/') ? reply.path : null;
+    } catch {
+      return null;
+    }
+  };
 
   function episodeCode(item) {
     const pad = (n) => String(n ?? 0).padStart(2, '0');

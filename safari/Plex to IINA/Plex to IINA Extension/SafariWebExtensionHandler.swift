@@ -9,7 +9,8 @@
 //  Also serves the Download button: { downloadCheck: { tags } } answers which files are
 //  already in ~/Downloads/Plex to IINA and how much space is free, and { download: { jobs } }
 //  hands the files to the app, which downloads them (Downloads.swift). This handler only
-//  runs for a moment per message, too short for a download.
+//  runs for a moment per message, too short for a download. And for Play,
+//  { downloadFind: { tag } } answers the path of a downloaded copy, which IINA then plays.
 //
 
 import AppKit
@@ -41,6 +42,11 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 "existing": tags.filter { existing.contains($0) },
                 "freeBytes": DownloadFolder.freeBytes().map { NSNumber(value: $0) } ?? NSNull(),
             ])
+            return
+        }
+        if let find = message?["downloadFind"] as? [String: Any] {
+            let file = (find["tag"] as? String).flatMap { DownloadFolder.file(withTag: $0) }
+            reply(context, ["path": file?.path ?? NSNull()])
             return
         }
         if let download = message?["download"] as? [String: Any] {
