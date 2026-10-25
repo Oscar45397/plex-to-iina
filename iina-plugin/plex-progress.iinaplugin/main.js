@@ -239,9 +239,11 @@
   // Once you've watched a download (90%, as Plex counts it) and it closes, move it to the
   // Trash, unless "Move Watched Downloads to Trash" is unticked in the Plugin menu.
   //
-  // Play in Plex Web adds plexLocal=<path> to the stream URL when you've downloaded the
-  // item (content.js). Just before mpv opens the stream, play that file from disk instead,
-  // if it's still there. Progress then goes to Plex as for any stream.
+  // Just before mpv opens a Plex stream, play a downloaded copy of that item from disk
+  // instead, if there is one: Play in Plex Web adds its location as plexLocal=<path>
+  // (content.js), and for other streams, such as the next episode in IINA's playlist, look
+  // for the item's tag in ~/Downloads/Plex to IINA. Progress then goes to Plex as for any
+  // stream.
 
   const DOWNLOAD_TAG = /\{plex-([0-9a-f]{8})-(\d+)\}\.[A-Za-z0-9]+$/;
   const SAVE_EVERY_MS = 30000; // while playing, save (and try to send) this often
@@ -260,18 +262,44 @@
     const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)\?([^#]*)$/i.exec(url);
     if (!stream || !PART_PATH.test(stream[2])) return;
     const query = parseQuery(stream[3]);
-    if (!query.plexLocal) return;
-    const local = existingCopy(query.plexLocal, query.plexRatingKey);
+    const local = (query.plexLocal && existingCopy(query.plexLocal, query.plexRatingKey))
+      || downloadedCopy(stream[1], query.plexRatingKey);
     if (local) {
       localCopies.set(url, local);
       mpv.set('stream-open-filename', local);
       mpv.set('cache', 'auto'); // mpv's default: no read-ahead into memory for a file on disk
       console.log(`Playing /library/metadata/${query.plexRatingKey} from its download`);
-    } else {
+    } else if (query.plexLocal) {
       // Gone, for example moved to the Trash once watched: stream, without the local path.
       mpv.set('stream-open-filename', url.replace(/([?&])plexLocal=[^&#]*&?/, '$1').replace(/[?&]$/, ''));
     }
   });
+
+  // A download of this item in ~/Downloads/Plex to IINA (or one folder down), found by its
+  // tag; null if there's none. The tag needs the server's ID, known once you've streamed
+  // from it (rememberServer).
+  function downloadedCopy(origin, ratingKey) {
+    if (!/^\d+$/.test(ratingKey || '')) return null;
+    const servers = loadPref(SERVERS_KEY);
+    const server = Object.keys(servers).find((id) => servers[id].origin === origin);
+    if (!server) return null;
+    const tag = `{plex-${server}-${ratingKey}}`;
+    try {
+      const root = iina.utils.resolvePath('~/Downloads/Plex to IINA');
+      const folders = [root];
+      for (const entry of iina.file.list(root, {}) || []) {
+        if (entry.isDir && !entry.filename.startsWith('.')) folders.push(`${root}/${entry.filename}`);
+      }
+      for (const folder of folders) {
+        const hit = (iina.file.list(folder, {}) || []).find((entry) => !entry.isDir
+          && DOWNLOAD_TAG.test(entry.filename) && entry.filename.includes(tag));
+        if (hit) return `${folder}/${hit.filename}`;
+      }
+    } catch {
+      // No such folder: nothing downloaded.
+    }
+    return null;
+  }
 
   // The absolute path of a downloaded file of this item that's still there, or null. Only
   // tagged files of the same item, so a link can't make IINA open anything else.
