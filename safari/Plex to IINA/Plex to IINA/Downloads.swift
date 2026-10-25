@@ -4,7 +4,9 @@
 //
 //  Downloads the files for the extension's Download button. Safari gives extensions no way
 //  to download, so the extension handler opens plex-to-iina://download?jobs=<base64 JSON>
-//  with this app, and the app downloads them one at a time into ~/Downloads/Plex to IINA:
+//  with this app (Info.plist declares the scheme; without that, macOS refuses to hand the
+//  link over from the sandboxed extension), and the app downloads them one at a time into
+//  ~/Downloads/Plex to IINA:
 //  the first episodes are complete first, for example if you leave before the rest are
 //  done. Progress shows in the app's window and as a count on its Dock icon.
 //
@@ -77,6 +79,9 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         return true
     }
 
+    // Any app or web page can open a plex-to-iina:// link, not only the extension, so
+    // accept only what the extension sends: Plex media files saved as tagged video files
+    // inside the Plex to IINA folder.
     func add(_ jobs: [DownloadJob]) {
         let onDisk = DownloadFolder.existingTags()
         var added = 0
