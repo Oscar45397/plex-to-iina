@@ -40,9 +40,15 @@ xcodebuild \
   build
 
 # 3. Install it and launch it once, which registers the extension with Safari.
+#    xcodebuild also registered the copy in the build folder; forget that one, or Safari
+#    may load the extension (and macOS open the app) from there instead.
+built="$build_dir/Build/Products/Release/$app_name.app"
 mkdir -p "$HOME/Applications"
 rm -rf "$installed"
-ditto "$build_dir/Build/Products/Release/$app_name.app" "$installed"
+ditto "$built" "$installed"
+pluginkit -r "$built/Contents/PlugIns/$app_name Extension.appex" 2>/dev/null || true
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -u "$built" 2>/dev/null || true
 open "$installed"
 
 echo "Installed $installed"
