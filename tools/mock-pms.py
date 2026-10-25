@@ -9,7 +9,7 @@ It also has a tiny library, for the extension's Download button: "Mock Show" (ra
 100; a special, season 1 with episodes 1001-1004, season 2 with 1005-1006; 1001 watched,
 1002 half-watched and On Deck) and "Mock Film" (200). Every item plays the same video.
 /web/index.html is a bare stand-in for Plex Web with a details-page Play button, so the
-extension runs on it. The token may come as a query parameter or an X-Plex-Token header.
+extension runs on it, and /photo/:/transcode returns a plain coloured poster. The token may come as a query parameter or an X-Plex-Token header.
 
 Usage:
     ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=24 -f lavfi -i sine -t 40 \\
@@ -27,8 +27,10 @@ the downloads queue up.
 """
 import json
 import os
+import struct
 import sys
 import time
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -63,7 +65,8 @@ def media(rating_key):
 
 
 SHOW = {'ratingKey': '100', 'key': '/library/metadata/100/children', 'type': 'show',
-        'title': 'Mock Show', 'year': 2024, 'leafCount': 7, 'viewedLeafCount': 1}
+        'title': 'Mock Show', 'year': 2024, 'leafCount': 7, 'viewedLeafCount': 1,
+        'thumb': '/library/metadata/100/thumb/1'}
 SEASONS = [
     {'ratingKey': '103', 'type': 'season', 'index': 0, 'title': 'Specials'},
     {'ratingKey': '101', 'type': 'season', 'index': 1, 'title': 'Season 1'},
@@ -80,7 +83,7 @@ EPISODES = [
     (1006, 102, 2, 2, 'Last One', {}),
 ]
 FILM = {'ratingKey': '200', 'type': 'movie', 'title': 'Mock Film', 'year': 2024,
-        'duration': 40000, 'Media': media(200)}
+        'duration': 40000, 'thumb': '/library/metadata/200/thumb/1', 'Media': media(200)}
 
 
 def episode(row):
@@ -88,7 +91,8 @@ def episode(row):
     return {'ratingKey': str(rk), 'key': f'/library/metadata/{rk}', 'type': 'episode',
             'title': title, 'index': index, 'parentIndex': season,
             'parentRatingKey': str(season_rk), 'grandparentRatingKey': '100',
-            'grandparentTitle': SHOW['title'], 'duration': 40000, 'Media': media(rk), **extra}
+            'grandparentTitle': SHOW['title'], 'grandparentThumb': SHOW['thumb'],
+            'thumb': f'/library/metadata/{rk}/thumb/1', 'duration': 40000, 'Media': media(rk), **extra}
 
 
 def season(s):
@@ -124,6 +128,20 @@ def library(path, query):
         if e['ratingKey'] == key and not rest:
             return {'Metadata': [e]}
     return None
+
+
+def poster_png(seed):
+    """A plain 2:3 PNG whose colour depends on seed, standing in for a poster."""
+    width, height = 60, 90
+    h = zlib.crc32(seed.encode())
+    pixel = bytes(((h >> 16) & 0xFF, (h >> 8) & 0xFF, h & 0xFF))
+    raw = b''.join(b'\x00' + pixel * width for _ in range(height))
+
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
 
 
 # A bare stand-in for Plex Web's details page: the Play button the extension looks for,
@@ -201,6 +219,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {'MediaContainer': body}) if body else self.send_json(404, {})
         if u.path.startswith('/library/parts/'):
             return self.send_video(q, token)
+        if u.path == '/photo/:/transcode':
+            record({'path': u.path, 'token_ok': token == TOKEN, 'url': q.get('url')})
+            if token != TOKEN:
+                return self.send_json(401, {})
+            data = poster_png(q.get('url', ''))
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         self.send_json(404, {})
 
     def send_video(self, q, token):
