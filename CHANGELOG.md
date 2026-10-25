@@ -8,10 +8,15 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Added
 
-- Starts on the best audio track in the language Plex picked (lossless first, then the
-  most channels) and uses Plex's subtitle choice, so you rarely need to switch tracks
-  in IINA, which makes it download its buffer again. On by default; turn it off in the
-  popup to use Plex's audio choice.
+- Starts on the best audio track in your languages: the first of your languages that
+  the file has audio in, then lossless first and the most channels. If another language
+  has clearly better audio, the message after pressing Play says so. Plex's subtitle
+  choice is used, so you rarely need to switch tracks in IINA, which makes it download
+  its buffer again. Turn it off in the popup to use Plex's audio choice.
+- Subtitles for other languages: when the audio isn't in one of your languages and Plex
+  picked no subtitles, the best subtitles in your language are turned on (full before
+  forced-only, regular before SDH). Set your languages in the popup, or leave it empty
+  to use your browser's languages.
 
 ### Improved
 
@@ -21,6 +26,12 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 - After jumping to a part that isn't buffered yet, playback resumes once 2 seconds are
   loaded and the rest fills in the background, instead of waiting for IINA's cache
   setting (up to 10 seconds).
+
+### Fixed
+
+- When Plex shows its own Resume Playback dialog, choosing **Resume from …** or
+  **Start from the beginning** now plays in IINA, from that point, instead of in Plex's
+  player. If the file can't be found, Plex plays it as before.
 
 ## [1.1.0] - 2026-10-15
 
