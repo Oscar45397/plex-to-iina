@@ -215,7 +215,8 @@ class Handler(BaseHTTPRequestHandler):
         # a seek outside its buffer.
         record({'path': 'media', 'part': self.path.split('?')[0], 'token_ok': token == TOKEN,
                 'token_in': 'header' if self.headers.get('X-Plex-Token') else 'query' if 'X-Plex-Token' in q else None,
-                'download': q.get('download'), 'from_byte': start, 'from_pct': round(100 * start / size, 1)})
+                'download': q.get('download'), 'extra': sorted(k for k in q if k not in ('X-Plex-Token', 'download')),
+                'from_byte': start, 'from_pct': round(100 * start / size, 1)})
         if token != TOKEN:
             return self.send_json(401, {})
         self.send_response(206 if rng else 200)
