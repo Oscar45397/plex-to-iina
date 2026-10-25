@@ -8,7 +8,7 @@ episode with Up Next, skips intros and credits, and plays downloaded copies from
 README.md is the short user guide; how things work is
 explained in comments in the code.
 
-This is a **public repository** (github.com/s7zjg7r9wf-cell/plex-to-iina). Everything
+This is a **public repository** (github.com/Oscar45397/plex-to-iina). Everything
 committed is visible to anyone, forever, so the rules below apply to every commit.
 
 ## Never commit personal or environment data
