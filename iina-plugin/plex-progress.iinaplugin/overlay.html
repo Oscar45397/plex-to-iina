@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plex Progress</title>
+<!--
+  Drawn over the video by main.js: a Skip Intro / Skip Credits button, or the Up Next card.
+  main.js sends a "state" message whenever what should show changes; button clicks go back
+  as "skip", "play-next" and "dismiss". IINA only passes a click through when the element
+  right under the pointer has data-clickable, so nothing inside a button takes the pointer.
+-->
+<style>
+  :root {
+    --accent: #e5a00d;
+    --panel: rgba(16, 18, 20, 0.86);
+    --text: #fff;
+    --muted: rgba(255, 255, 255, 0.66);
+    --edge: rgba(255, 255, 255, 0.14);
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    color: var(--text);
+    font: 13px/1.35 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  button * { pointer-events: none; }
+
+  /* Bottom right, clear of IINA's controls. */
+  .panel {
+    position: absolute;
+    right: max(20px, 3vw);
+    bottom: max(76px, 12vh);
+    opacity: 0;
+    transform: translateY(10px);
+    visibility: hidden;
+    transition: opacity 0.2s, transform 0.25s var(--ease), visibility 0s linear 0.25s;
+  }
+  .panel.on {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    transition: opacity 0.2s, transform 0.25s var(--ease), visibility 0s;
+  }
+
+  .skip {
+    padding: 0.65em 1.25em;
+    border-radius: 7px;
+    background: var(--panel);
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 6px 20px rgba(0, 0, 0, 0.45);
+    font-size: clamp(13px, 1.25vw, 17px);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    transition: background 0.15s, color 0.15s;
+  }
+  .skip:hover { background: #fff; color: #111; }
+  .skip .chevron { margin-left: 0.45em; opacity: 0.8; }
+
+  .card {
+    width: clamp(240px, 24vw, 360px);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--panel);
+    box-shadow: inset 0 0 0 1px var(--edge), 0 12px 32px rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+  .thumb {
+    aspect-ratio: 16 / 9;
+    background: #23272b center / cover no-repeat;
+  }
+  .thumb[hidden] { display: none; }
+  .body { padding: 11px 13px 13px; }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  .eyebrow { color: var(--accent); }
+  .when { color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+  .title {
+    margin-top: 4px;
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .show {
+    margin-top: 1px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .actions { display: flex; gap: 8px; margin-top: 11px; }
+  .actions button {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: filter 0.15s, background 0.15s;
+  }
+  .play { background: var(--accent); color: #141414; }
+  .play:hover { filter: brightness(1.1); }
+  .dismiss { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px var(--edge); }
+  .dismiss:hover { background: rgba(255, 255, 255, 0.18); }
+
+  /* Time left until the next episode starts. */
+  .bar { height: 3px; background: rgba(255, 255, 255, 0.1); }
+  .bar[hidden] { display: none; }
+  .bar span {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: var(--accent);
+    transition: width 1s linear;
+  }
+  .bar.paused span { transition: none; }
+
+  @media (max-height: 420px), (max-width: 560px) {
+    .thumb { display: none; }
+    .panel { bottom: max(64px, 10vh); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel, .panel.on { transform: none; transition: opacity 0.15s, visibility 0s; }
+  }
+</style>
+</head>
+<body>
+  <button id="skip" class="panel skip" type="button"><span id="skip-label">Skip Intro</span><span class="chevron">›</span></button>
+
+  <section id="card" class="panel card" aria-live="polite">
+    <div id="thumb" class="thumb" hidden></div>
+    <div class="body">
+      <div class="head"><span class="eyebrow">Up next</span><span id="when" class="when"></span></div>
+      <div id="title" class="title"></div>
+      <div id="show" class="show"></div>
+      <div class="actions">
+        <button id="play" class="play" type="button"><span>▶︎ Play Now</span></button>
+        <button id="dismiss" class="dismiss" type="button">Watch Credits</button>
+      </div>
+    </div>
+    <div id="bar" class="bar" hidden><span id="fill"></span></div>
+  </section>
+
+<script>
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  let thumb = null;
+
+  iina.onMessage('state', (state) => {
+    const skip = state.kind === 'skip';
+    const upNext = state.kind === 'up-next';
+    setShown($('skip'), skip);
+    setShown($('card'), upNext);
+    if (skip) $('skip-label').textContent = state.label;
+    if (upNext) showUpNext(state);
+  });
+
+  // Only visible buttons take clicks.
+  function setShown(panel, on) {
+    panel.classList.toggle('on', on);
+    for (const button of [panel, ...panel.querySelectorAll('button')]) {
+      if (button.tagName !== 'BUTTON') continue;
+      if (on) button.dataset.clickable = '';
+      else delete button.dataset.clickable;
+    }
+  }
+
+  function showUpNext(state) {
+    $('title').textContent = [state.label, state.title].filter(Boolean).join(' · ');
+    $('show').textContent = state.show;
+    $('dismiss').textContent = state.dismiss;
+    if (state.thumb !== thumb) {
+      thumb = state.thumb;
+      $('thumb').hidden = !thumb;
+      $('thumb').style.backgroundImage = thumb ? `url("${thumb.replace(/"/g, '%22')}")` : '';
+    }
+    const counting = state.left !== null;
+    $('when').textContent = !counting ? '' : state.paused ? 'Paused' : `in ${state.left} s`;
+    $('bar').hidden = !counting;
+    $('bar').classList.toggle('paused', Boolean(state.paused));
+    if (counting) $('fill').style.width = `${(state.fraction * 100).toFixed(1)}%`;
+  }
+
+  $('skip').addEventListener('click', () => iina.postMessage('skip'));
+  $('play').addEventListener('click', () => iina.postMessage('play-next'));
+  $('dismiss').addEventListener('click', () => iina.postMessage('dismiss'));
+</script>
+</body>
+</html>

@@ -2,14 +2,15 @@
   "name": "Plex Progress",
   "identifier": "local.plex-to-iina.progress",
   "version": "1.1.0",
-  "description": "Reports playback of files streamed from Plex Media Server back to Plex, so Continue Watching and watched status stay in sync. Companion to the Plex → IINA browser extension.",
+  "description": "For files streamed from Plex Media Server: reports playback back to Plex, so Continue Watching and watched status stay in sync; plays the next episode, with Up Next when the credits start; and offers Skip Intro and Skip Credits. Companion to the Plex → IINA browser extension.",
   "author": {
     "name": "Plex → IINA"
   },
   "entry": "main.js",
-  "permissions": ["network-request", "show-osd"],
+  "permissions": ["network-request", "show-osd", "video-overlay"],
   "allowedDomains": ["*"],
   "preferenceDefaults": {
-    "clientIdentifier": ""
+    "clientIdentifier": "",
+    "autoSkipIntros": false
   }
 }

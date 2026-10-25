@@ -17,9 +17,22 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   picked no subtitles, the best subtitles in your language are turned on (full before
   forced-only, regular before SDH). Set your languages in the popup, or leave it empty
   to use your browser's languages.
+- Plays the next episode when one ends, across seasons. The IINA plugin adds it to IINA's
+  playlist, so IINA's Next Media reaches it too. It starts where you left off and keeps
+  the audio and subtitle languages you were watching in. IINA's **Play next item
+  automatically** setting turns this off.
+- Up Next: when the end credits start, a card shows the next episode and plays it after
+  10 seconds, or press **Watch Credits** to keep watching. Without Plex's credits marker,
+  the card shows in the last seconds and the episode plays to the end.
+- **Skip Intro** and **Skip Credits** buttons where Plex has found the intro or credits
+  (servers with Plex Pass detect them), and **Skip Intros Automatically** in IINA's
+  Plugin menu.
+- These need the updated IINA plugin: install the new package and allow it to show
+  buttons over the video when IINA asks.
 
 ### Improved
 
+- Reaching the end credits marks an episode or movie as watched, even before 90%.
 - Rewinding plays from memory instead of downloading again: IINA keeps a fifth of the
   buffer size of what you just watched (1 GB at the 5 GB setting, about 90 seconds of
   a 4K remux).
@@ -32,6 +45,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 - When Plex shows its own Resume Playback dialog, choosing **Resume from …** or
   **Start from the beginning** now plays in IINA, from that point, instead of in Plex's
   player. If the file can't be found, Plex plays it as before.
+- IINA starts where Plex says, also when it remembers its own position for the file
+  (IINA's **Resume last playback position** setting). Before, IINA's position could win,
+  so starting from the beginning, or with resume off in the popup, could start elsewhere.
+  Needs the updated IINA plugin.
 
 ## [1.1.0] - 2026-10-15
 
