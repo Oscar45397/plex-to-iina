@@ -19,11 +19,12 @@ browser.runtime.onMessage.addListener((message, sender) => {
   }
   // The Download button (download.js). Safari has no downloads API for extensions, so the
   // companion app checks the Downloads folder and does the downloading.
-  if (['download-check', 'download-find', 'download'].includes(message?.type)) {
+  if (['download-check', 'download-find', 'download', 'keep-ahead'].includes(message?.type)) {
     const request = {
       'download-check': { downloadCheck: { tags: message.tags } },
       'download-find': { downloadFind: { tag: message.tag } },
       download: { download: { jobs: message.jobs } },
+      'keep-ahead': { keepAhead: message.keep },
     }[message.type];
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('no answer within 8 s')), 8000));
     return Promise.race([browser.runtime.sendNativeMessage('application.id', request), timeout])

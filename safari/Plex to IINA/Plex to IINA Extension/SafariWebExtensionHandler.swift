@@ -11,6 +11,7 @@
 //  hands the files to the app, which downloads them (Downloads.swift). This handler only
 //  runs for a moment per message, too short for a download. And for Play,
 //  { downloadFind: { tag } } answers the path of a downloaded copy, which IINA then plays.
+//  { keepAhead: { … } } hands a show to keep ahead to the app (KeepAhead.swift).
 //
 
 import AppKit
@@ -50,7 +51,12 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             return
         }
         if let download = message?["download"] as? [String: Any] {
-            startDownloads(download["jobs"] as? [[String: Any]] ?? [], context: context)
+            let jobs = download["jobs"] as? [[String: Any]] ?? []
+            openApp("download", "jobs", jobs.isEmpty ? nil : jobs, context: context, reply: ["queued": jobs.count, "where": "app"])
+            return
+        }
+        if let keep = message?["keepAhead"] as? [String: Any] {
+            openApp("keep", "data", keep, context: context, reply: ["handled": true])
             return
         }
 
@@ -71,18 +77,17 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         context.completeRequest(returningItems: [response], completionHandler: nil)
     }
 
-    // Opens plex-to-iina://download?jobs=<base64 JSON> with the app that contains this
-    // extension, in the background. The jobs include the Plex token, so log only counts.
-    private func startDownloads(_ jobs: [[String: Any]], context: NSExtensionContext) {
+    // Opens plex-to-iina://<host>?<name>=<base64 JSON> with the app that contains this
+    // extension, in the background. The payload includes the Plex token, so log no details.
+    private func openApp(_ host: String, _ name: String, _ payload: Any?, context: NSExtensionContext, reply success: [String: Any]) {
         var link = URLComponents()
         link.scheme = "plex-to-iina"
-        link.host = "download"
-        guard !jobs.isEmpty,
-              let data = try? JSONSerialization.data(withJSONObject: jobs) else {
-            reply(context, ["error": "nothing to download"])
+        link.host = host
+        guard let payload, let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            reply(context, ["error": "nothing to send to the app"])
             return
         }
-        link.queryItems = [URLQueryItem(name: "jobs", value: data.base64EncodedString())]
+        link.queryItems = [URLQueryItem(name: name, value: data.base64EncodedString())]
         // …/Plex to IINA.app/Contents/PlugIns/Plex to IINA Extension.appex
         let app = Bundle.main.bundleURL
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -90,11 +95,11 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         configuration.activates = false
         NSWorkspace.shared.open([link.url!], withApplicationAt: app, configuration: configuration) { [log] _, error in
             if let error {
-                os_log(.error, log: log, "Couldn't hand %d downloads to the app: %{public}@", jobs.count, error.localizedDescription)
+                os_log(.error, log: log, "Couldn't hand a %{public}@ request to the app: %{public}@", host, error.localizedDescription)
                 self.reply(context, ["error": "couldn't open the Plex to IINA app"])
             } else {
-                os_log(.default, log: log, "Handed %d downloads to the app", jobs.count)
-                self.reply(context, ["queued": jobs.count, "where": "app"])
+                os_log(.default, log: log, "Handed a %{public}@ request to the app", host)
+                self.reply(context, success)
             }
         }
     }

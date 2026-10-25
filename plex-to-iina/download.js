@@ -20,6 +20,7 @@
   const DEFAULTS = { downloadButton: true, downloadCount: 3 };
   const DOWNLOADABLE = new Set(['movie', 'show', 'season', 'episode']);
   const FOLDER = 'Plex to IINA';
+  const KEPT_KEY = 'keptShows'; // { "<server>-<showKey>": lead }, mirroring what the app keeps
 
   let settings = { ...DEFAULTS };
   ext.storage.sync.get(DEFAULTS).then((stored) => {
@@ -200,8 +201,22 @@
 
     const check = await send({ type: 'download-check', tags: files.map((f) => f.tag) });
     const existing = new Set(check.existing ?? []);
+    // Keep ahead (the Plex to IINA app, KeepAhead.swift) works per show.
+    const showKey = { show: item.ratingKey, season: item.parentRatingKey, episode: item.grandparentRatingKey }[item.type];
+    const keep = showKey ? {
+      server: target.machineId.slice(0, 8).toLowerCase(),
+      origin: server.uri,
+      token: server.token ?? '',
+      showKey: String(showKey),
+      title: { show: item.title, season: item.parentTitle, episode: item.grandparentTitle }[item.type] ?? files[0].show,
+      from: String(items[0].ratingKey),
+    } : null;
+    const kept = keep ? ((await ext.storage.local.get(KEPT_KEY))[KEPT_KEY] ?? {})[`${keep.server}-${keep.showKey}`] ?? 0 : 0;
     return {
       server,
+      keep,
+      kept,
+      count: items.length,
       folder: item.type === 'movie' ? FOLDER : `${FOLDER} › ${cleanName(files[0].show)}`,
       files: files.filter((f) => !existing.has(f.tag)),
       skipped: files.filter((f) => existing.has(f.tag)),
@@ -370,6 +385,11 @@
         button.primary { background: #e5a00d; border-color: #e5a00d; color: #1f2326; }
         button:disabled { opacity: 0.5; cursor: default; }
         button:focus-visible { outline: 2px solid #e5a00d; outline-offset: 2px; }
+        .keep { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; color: #eceef0; cursor: pointer; }
+        .keep[hidden] { display: none; }
+        .keep input { margin: 3px 0 0; accent-color: #e5a00d; }
+        .keep small { display: block; color: #9aa0a6; }
+        button.link { border: 0; padding: 0; background: none; color: #e5a00d; }
       </style>
       <div class="box" role="dialog" aria-label="Download">
         <h2></h2>
@@ -380,6 +400,11 @@
           off Move Watched Downloads to Trash in IINA's Plugin menu.</p>
         <p class="space" hidden></p>
         <p class="relay warn" hidden>⚠ Via Plex Relay: downloads will be very slow.</p>
+        <label class="keep" hidden><input type="checkbox">
+          <span>Keep <b class="lead"></b> episodes ready
+            <small>The Plex to IINA app downloads the next ones each time it can reach your
+              server, also in the background.</small></span></label>
+        <p class="kept" hidden><span></span> <button type="button" class="link stop">Stop</button></p>
         <div class="actions">
           <button type="button" class="cancel">Cancel</button>
           <button type="button" class="primary start">Download</button>
@@ -418,8 +443,27 @@
     }
     $('.relay').hidden = !plan.server.relay;
     $('.start').disabled = tooBig;
+    const keepBox = plan.keep ? $('.keep input') : null;
+    if (keepBox) {
+      // Checked: the app downloads these now and keeps this many ready from then on.
+      $('.keep').hidden = false;
+      $('.lead').textContent = plan.count;
+      keepBox.checked = plan.kept > 0;
+      if (plan.kept > 0) {
+        $('.kept').hidden = false;
+        $('.kept span').textContent = `The Plex to IINA app keeps ${plan.kept} episode${plan.kept === 1 ? '' : 's'} of this show ready.`;
+        $('.stop').addEventListener('click', () => keepAhead(plan, 0));
+      }
+      const update = () => {
+        $('.start').textContent = keepBox.checked ? `Keep ${plan.count} ready` : 'Download';
+        $('.start').hidden = !keepBox.checked && !plan.files.length;
+        $('.start').disabled = !keepBox.checked && tooBig; // the app checks space itself
+      };
+      keepBox.addEventListener('change', update);
+      update();
+    }
     $('.cancel').addEventListener('click', closePopover);
-    $('.start').addEventListener('click', () => start(plan, total));
+    $('.start').addEventListener('click', () => (keepBox?.checked ? keepAhead(plan, plan.count) : start(plan, total)));
     root.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closePopover();
       event.stopPropagation(); // keep Plex's keyboard shortcuts out
@@ -466,6 +510,34 @@
     } catch (err) {
       note('log', `Download failed: ${err.message}`);
       toast(`Couldn't start the download (${err.message}).`, { error: true });
+    }
+  }
+
+  // Hand the show to the Plex to IINA app, which downloads the next episodes now and keeps
+  // this many ready (KeepAhead.swift); a lead of 0 stops it. Safari's background passes it
+  // on; in Chrome the app gets it through a link, which Chrome asks to open the first time.
+  async function keepAhead(plan, lead) {
+    closePopover();
+    const keep = { ...plan.keep, lead };
+    try {
+      const reply = await send({ type: 'keep-ahead', keep });
+      if (!reply.handled) {
+        const json = new TextEncoder().encode(JSON.stringify(keep));
+        const link = document.createElement('a');
+        link.href = `plex-to-iina://keep?data=${encodeURIComponent(btoa(String.fromCharCode(...json)))}`;
+        link.click();
+      }
+      const id = `${keep.server}-${keep.showKey}`;
+      const kept = (await ext.storage.local.get(KEPT_KEY))[KEPT_KEY] ?? {};
+      if (lead) kept[id] = lead;
+      else delete kept[id];
+      await ext.storage.local.set({ [KEPT_KEY]: kept });
+      note('log', lead ? `Keeping a show ${lead} ahead` : 'Stopped keeping a show ahead');
+      toast(lead
+        ? `The Plex to IINA app keeps ${lead} episode${lead === 1 ? '' : 's'} of ${keep.title} ready\nIt downloads the next ones each time it can reach your server.`
+        : `Stopped keeping ${keep.title} ahead.`);
+    } catch (err) {
+      toast(`Couldn't reach the Plex to IINA app (${err.message}).`, { error: true });
     }
   }
 

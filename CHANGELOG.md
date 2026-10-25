@@ -21,6 +21,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 - Play in Plex Web plays your downloaded copy from disk when you have one: the same
   file, without streaming, so nothing to buffer. So does any other Plex episode IINA
   opens, such as the next one in its playlist. Needs the updated IINA plugin.
+- Keep ahead: tick **Keep … episodes ready** in the Download panel and the Plex to IINA
+  app keeps that many unwatched episodes of the show downloaded. Each time it can reach
+  your server (every 15 minutes, on wake and on network changes, also in the background
+  and after login) it downloads the next ones, refilling to the full number.
 - The Plex to IINA app (Safari) shows your downloads as a library, with posters, and
   plays them in IINA with one click. Its window is cleaner and can be resized.
 - Starts on the best audio track in the language Plex picked (lossless first, then the

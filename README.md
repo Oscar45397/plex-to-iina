@@ -82,6 +82,12 @@ and the rest download one at a time, so the first episodes are ready first.
 - **Play** in Plex Web plays your downloaded copy from disk when there is one, so there's
   nothing to buffer. So does any other Plex episode IINA opens, such as the next one in
   its playlist. Progress goes to Plex as when streaming.
+- **Keep ahead:** tick **Keep … episodes ready** in the Download panel, and the Plex to
+  IINA app downloads the next episodes each time it can reach your server: every 15
+  minutes, when the Mac wakes and when the network changes, in the background and after
+  login. It refills to the full number every time, not just when you're nearly out, so
+  you leave with as many as it can get. Stop it in the panel or in the app. This needs
+  the app, in Chrome too (build it with `safari/build.sh`).
 - **After watching:** once you've watched a downloaded episode or film in IINA, the
   plugin moves the file to the Trash. To keep downloads, untick **Move Watched Downloads
   to Trash** in IINA's Plugin menu. The plugin asks for file access for this when you
@@ -116,7 +122,8 @@ The extension talks only to your Plex server and plex.tv, using Plex Web's exist
 sign-in. The link handed to IINA contains your server's access token, like any direct
 Plex file link; it stays on your Mac. To sync progress of downloaded files, the IINA
 plugin keeps the address and access token of each server you stream from in IINA's
-plugin settings, also only on your Mac. No analytics.
+plugin settings, and the Plex to IINA app keeps them for shows you keep ahead, both
+only on your Mac. No analytics.
 
 ## Development
 

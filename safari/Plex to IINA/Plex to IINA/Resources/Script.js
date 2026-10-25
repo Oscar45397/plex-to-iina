@@ -43,6 +43,37 @@ function queueRow(item) {
     return row;
 }
 
+// Shows kept ahead (KeepAhead.swift): how many are ready, and when the server last answered.
+function showKept(state) {
+    const section = document.getElementById("kept");
+    section.hidden = state.shows.length === 0;
+    section.querySelector(".kept").replaceChildren(...state.shows.map(keptRow));
+    const login = state.shows[0]?.loginItem;
+    section.querySelector(".login").textContent = login === "on" ? "Checks in the background, also after login"
+        : login === "approve" ? "Allow it in System Settings › Login Items" : "Checks while this app is open";
+}
+
+function keptRow(show) {
+    const row = element("li");
+    const text = element("div", "kept-text");
+    text.append(element("span", "name", show.title),
+        element("span", "status", `${show.ready} of ${show.lead} ready · ${lastReached(show.lastReached)}`));
+    const stop = element("button", "link", "Stop");
+    stop.title = `Stop keeping ${show.title} ahead`;
+    stop.addEventListener("click", () => post({ action: "unkeep", id: show.id }));
+    row.append(text, stop);
+    return row;
+}
+
+function lastReached(time) {
+    if (!time) return "waiting for the server";
+    const date = new Date(time);
+    const today = new Date().toDateString() === date.toDateString();
+    const when = today ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : date.toLocaleDateString([], { day: "numeric", month: "short" });
+    return `server reached ${today ? "at " : "on "}${when}`;
+}
+
 // What's on disk (Library.swift): shows with their episodes, then films.
 function showLibrary(library) {
     const shelf = document.querySelector("#library .shelf");

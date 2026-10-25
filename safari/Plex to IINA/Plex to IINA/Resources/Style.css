@@ -388,3 +388,38 @@ button.play:hover {
     align-items: center;
     gap: 6px;
 }
+
+/* ---- Kept ahead ------------------------------------------------------------------ */
+
+.kept {
+    margin: 0;
+    padding: 4px 14px;
+    list-style: none;
+    border-radius: 10px;
+    background: var(--card);
+}
+
+.kept li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.kept li:last-child {
+    border-bottom: 0;
+}
+
+.kept-text {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.kept .status,
+.login {
+    color: var(--muted);
+    font-size: 12px;
+}

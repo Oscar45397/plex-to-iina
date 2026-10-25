@@ -12,7 +12,13 @@ const QUEUE_KEY = 'downloadQueue';
 const STOP_REASONS = new Set(['FILE_NO_SPACE', 'FILE_TOO_LARGE', 'USER_CANCELED']);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const handler = { 'download-check': check, 'download-find': find, download: enqueue }[message?.type];
+  const handler = {
+    'download-check': check,
+    'download-find': find,
+    download: enqueue,
+    // Keep ahead is done by the Plex to IINA app; download.js opens it with a link.
+    'keep-ahead': async () => ({ handled: false }),
+  }[message?.type];
   if (!handler) return false; // the Play button's messages: nothing to do in Chrome
   handler(message)
     .then(sendResponse)

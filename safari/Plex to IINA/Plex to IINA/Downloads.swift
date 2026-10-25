@@ -62,6 +62,11 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         current != nil || items.contains { $0.status == .queued }
     }
 
+    /// Tags of the files waiting or downloading (for KeepAhead).
+    func pendingTags() -> Set<String> {
+        Set(items.filter { $0.status == .queued || $0.status == .downloading }.map(\.job.tag))
+    }
+
     // MARK: - Requests from the extension
 
     /// Handles plex-to-iina://download?jobs=<base64 JSON>. Returns whether it was one.

@@ -27,6 +27,7 @@
 		D0F0D1A530802A1E00FC8E08 /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A430802A1E00FC8E08 /* Downloads.swift */; };
 		D0F0D1A730802A1E00FC8E08 /* download.js in Resources */ = {isa = PBXBuildFile; fileRef = D0F0D1A630802A1E00FC8E08 /* download.js */; };
 		D0F0D1A930802A1E00FC8E08 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A830802A1E00FC8E08 /* Library.swift */; };
+		D0F0D1AB30802A1E00FC8E08 /* KeepAhead.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1AA30802A1E00FC8E08 /* KeepAhead.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,7 @@
 		D0F0D1A430802A1E00FC8E08 /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
 		D0F0D1A630802A1E00FC8E08 /* download.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = download.js; path = ../../extension/download.js; sourceTree = "<group>"; };
 		D0F0D1A830802A1E00FC8E08 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		D0F0D1AA30802A1E00FC8E08 /* KeepAhead.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepAhead.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +118,7 @@
 				619DDA5E30802A1D00FC8E08 /* ViewController.swift */,
 				D0F0D1A430802A1E00FC8E08 /* Downloads.swift */,
 				D0F0D1A830802A1E00FC8E08 /* Library.swift */,
+				D0F0D1AA30802A1E00FC8E08 /* KeepAhead.swift */,
 				619DDA6030802A1D00FC8E08 /* Main.storyboard */,
 				619DDA6330802A1D00FC8E08 /* Assets.xcassets */,
 				619DDA6530802A1D00FC8E08 /* Info.plist */,
@@ -275,6 +278,7 @@
 				619DDA5330802A1D00FC8E08 /* AppDelegate.swift in Sources */,
 				D0F0D1A530802A1E00FC8E08 /* Downloads.swift in Sources */,
 				D0F0D1A930802A1E00FC8E08 /* Library.swift in Sources */,
+				D0F0D1AB30802A1E00FC8E08 /* KeepAhead.swift in Sources */,
 				D0F0D1A230802A1E00FC8E08 /* DownloadFolder.swift in Sources */,
 			);
 		};
