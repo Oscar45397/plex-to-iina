@@ -23,7 +23,7 @@
 
   // Safari: background.js shows an "on" badge for this tab and forwards these notes to
   // the companion app's log (Console.app, subsystem local.plex-to-iina.app.Extension).
-  // Chrome has no background script, so they go nowhere. Never include the token.
+  // Chrome's service worker ignores them. Never include the token.
   function note(type, text = '') {
     Promise.resolve()
       .then(() => ext.runtime.sendMessage({ type, text }))
@@ -339,8 +339,8 @@
   }
 
   // In Safari, the extension's companion app opens IINA directly, which avoids Safari's
-  // "Allow this page to open IINA?" question on every play. Chrome has no background
-  // script, so the message fails and we fall back to a link click.
+  // "Allow this page to open IINA?" question on every play. In Chrome nothing answers
+  // this message, so we fall back to a link click.
   async function openExternal(url) {
     try {
       // The app normally answers within a second. If Safari couldn't start it (this happens
@@ -352,7 +352,7 @@
       if (reply?.opened) return;
       note('log', 'Companion app did not open IINA, trying a link');
     } catch {
-      // Nothing listening (Chrome): use the link below.
+      // No answer (Chrome): use the link below.
     }
     // A detached link click opens the external app without Plex's router seeing it.
     const link = document.createElement('a');
@@ -428,4 +428,7 @@
     clearTimeout(toastTimer);
     if (toastEl) toastEl.style.opacity = '0';
   }
+
+  // For download.js, which runs after this file in the same content-script world.
+  globalThis.plexToIina = { ext, note, toast, resolveServer, plexGet, parsePlexLink, titleOf };
 })();

@@ -5,6 +5,7 @@ instead of the browser player. IINA streams the original file from your Plex Med
 Server, so nothing is transcoded, and an IINA plugin reports your progress back to Plex.
 
 Works in Chrome and Safari on macOS, on `app.plex.tv` or your server's own Plex Web.
+A **Download** button saves episodes and films to watch in IINA without the server.
 
 > Not affiliated with Plex Inc. or the IINA project.
 
@@ -59,6 +60,29 @@ IINA reads ahead into memory to ride out slow moments. How long the buffer lasts
 
 Each IINA window can use that much memory, plus a fifth more to make rewinding instant.
 
+## Downloading to watch offline
+
+On a film, show, season or episode page, **Download** (next to Play) saves the original
+files to **Downloads › Plex to IINA**, so you can watch them in IINA where the server
+can't be reached, for example away from home. Choose how many episodes next to the
+button: a show or season starts at the next episode to watch, an episode page at that
+episode. You see the total size before it starts. Files you already have are skipped,
+and the rest download one at a time, so the first episodes are ready first.
+
+- **Chrome** shows progress in its downloads list.
+- **Safari:** the Plex to IINA app downloads the files, checks free disk space first, and
+  shows progress in its window. The first time, macOS may ask to let it use the local
+  network; allow it.
+- **Progress:** the IINA plugin remembers where you stopped and what you finished, and
+  tells Plex when the server can be reached again. It reaches the server the way your
+  last stream from it did, so stream from that server in IINA at least once, and keep
+  the `{plex-…}` tag in the file names.
+
+Over wired gigabit Ethernet a 5 GB episode takes about a minute, over Wi-Fi a few
+minutes; Plex Relay is too slow. If the server's owner hasn't allowed downloads for your
+account, the server refuses them. Items split into several files download only the
+first part, and subtitles in separate files aren't included.
+
 ## Troubleshooting
 
 - **Play still opens Plex's player:** the extension isn't active on that page. Reload
@@ -81,7 +105,9 @@ Each IINA window can use that much memory, plus a fifth more to make rewinding i
 
 The extension talks only to your Plex server and plex.tv, using Plex Web's existing
 sign-in. The link handed to IINA contains your server's access token, like any direct
-Plex file link; it stays on your Mac. No analytics.
+Plex file link; it stays on your Mac. To sync progress of downloaded files, the IINA
+plugin keeps the address and access token of each server you stream from in IINA's
+plugin settings, also only on your Mac. No analytics.
 
 ## Development
 

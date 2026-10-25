@@ -3,7 +3,8 @@
 // Safari's "Allow this page to open IINA?" question on every play.
 //
 // content.js also says hello when it starts on a page (we show an "on" badge for that
-// tab) and sends short progress notes, which the app writes to the macOS log.
+// tab) and sends short progress notes, which the app writes to the macOS log. And
+// download.js asks for downloads, which the app does (see below).
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message?.type === 'hello') {
     if (sender.tab?.id != null) {
@@ -15,6 +16,20 @@ browser.runtime.onMessage.addListener((message, sender) => {
   if (message?.type === 'log') {
     log(String(message.text));
     return undefined;
+  }
+  // The Download button (download.js). Safari has no downloads API for extensions, so the
+  // companion app checks the Downloads folder and does the downloading.
+  if (message?.type === 'download-check' || message?.type === 'download') {
+    const request = message.type === 'download'
+      ? { download: { jobs: message.jobs } }
+      : { downloadCheck: { tags: message.tags } };
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('no answer within 8 s')), 8000));
+    return Promise.race([browser.runtime.sendNativeMessage('application.id', request), timeout])
+      .then((reply) => reply ?? { error: 'the Plex to IINA app did not answer' })
+      .catch((err) => {
+        log(`Companion app unreachable for downloads: ${err?.message ?? err}`);
+        return { error: 'the Plex to IINA app did not answer; open it once, then try again' };
+      });
   }
   if (message?.type !== 'open-iina' || typeof message.url !== 'string' || !message.url.startsWith('iina://open?')) {
     return undefined;

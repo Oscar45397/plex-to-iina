@@ -43,3 +43,84 @@ body.state-off :is(.state-on, .state-unknown) {
 button {
     font-size: 1em;
 }
+
+/* Downloads for the extension's Download button (Script.js, showDownloads). */
+[hidden] {
+    display: none !important;
+}
+
+body.has-downloads {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-top: 14px;
+    box-sizing: border-box;
+}
+
+body.has-downloads img {
+    width: 48px;
+    height: 48px;
+}
+
+body.has-downloads p,
+body.has-downloads .open-preferences {
+    font-size: 0.85em;
+    margin: 0;
+}
+
+#downloads {
+    width: 100%;
+    text-align: left;
+}
+
+#downloads ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 132px;
+    overflow-y: auto;
+    border-top: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+#downloads li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+#downloads .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#downloads .status {
+    color: GrayText;
+    font-variant-numeric: tabular-nums;
+    max-width: 210px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#downloads li.failed .status {
+    grid-column: 1 / -1;
+    max-width: none;
+    white-space: normal;
+    color: #d93a2f;
+}
+
+#downloads progress {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 6px;
+    margin-top: 4px;
+}
+
+.download-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+}

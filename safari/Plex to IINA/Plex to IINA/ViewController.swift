@@ -21,6 +21,15 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
         self.webView.configuration.userContentController.add(self, name: "controller")
 
         self.webView.loadFileURL(Bundle.main.url(forResource: "Main", withExtension: "html")!, allowingReadAccessTo: Bundle.main.resourceURL!)
+
+        DownloadManager.shared.onChange = { [weak self] in self?.showDownloads() }
+    }
+
+    // The download list (Downloads.swift) in the page (Script.js).
+    private func showDownloads() {
+        guard let data = try? JSONSerialization.data(withJSONObject: DownloadManager.shared.state()),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("showDownloads(\(json))")
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -38,11 +47,21 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
                 }
             }
         }
+        showDownloads()
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if (message.body as! String != "open-preferences") {
-            return;
+        switch message.body as? String {
+        case "show-downloads":
+            DownloadManager.shared.revealFolder()
+            return
+        case "cancel-downloads":
+            DownloadManager.shared.cancelAll()
+            return
+        case "open-preferences":
+            break
+        default:
+            return
         }
 
         SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { error in

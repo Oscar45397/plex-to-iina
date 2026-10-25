@@ -3,8 +3,10 @@ const ext = globalThis.browser ?? globalThis.chrome;
 
 // Keep in sync with DEFAULTS in content.js.
 const DEFAULTS = { enabled: true, resume: true, fullScreen: false, bufferGB: 5, bestAudio: true };
+// Keep in sync with DEFAULTS in download.js.
+const DOWNLOAD_DEFAULTS = { downloadButton: true, downloadCount: 3 };
 
-ext.storage.sync.get(DEFAULTS).then((settings) => {
+ext.storage.sync.get({ ...DEFAULTS, ...DOWNLOAD_DEFAULTS }).then((settings) => {
   for (const [key, value] of Object.entries(settings)) {
     const input = document.getElementById(key);
     if (!input) continue;
