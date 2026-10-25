@@ -19,8 +19,11 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 - Up Next: when the end credits start, a card shows the next episode and plays it after
   10 seconds, or press **Watch Credits** to keep watching. Without Plex's credits marker,
   the card shows in the last seconds and the episode plays to the end.
-- This needs the updated IINA plugin: install the new package and allow it to show
-  content over the video when IINA asks.
+- **Skip Intro** and **Skip Credits** buttons where Plex has found the intro or credits
+  (servers with Plex Pass detect them), and **Skip Intros Automatically** in IINA's
+  Plugin menu.
+- These need the updated IINA plugin: install the new package and allow it to show
+  buttons over the video when IINA asks.
 
 ### Improved
 

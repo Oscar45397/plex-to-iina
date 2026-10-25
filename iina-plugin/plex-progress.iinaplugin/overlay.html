@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <title>Plex Progress</title>
 <!--
-  Drawn over the video by main.js: the Up Next card. main.js sends a "state" message
-  whenever what should show changes; button clicks go back as "play-next" and "dismiss". IINA only passes a click through when the element
+  Drawn over the video by main.js: a Skip Intro / Skip Credits button, or the Up Next card.
+  main.js sends a "state" message whenever what should show changes; button clicks go back
+  as "skip", "play-next" and "dismiss". IINA only passes a click through when the element
   right under the pointer has data-clickable, so nothing inside a button takes the pointer.
 -->
 <style>
@@ -53,6 +54,21 @@
     visibility: visible;
     transition: opacity 0.2s, transform 0.25s var(--ease), visibility 0s;
   }
+
+  .skip {
+    padding: 0.65em 1.25em;
+    border-radius: 7px;
+    background: var(--panel);
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 6px 20px rgba(0, 0, 0, 0.45);
+    font-size: clamp(13px, 1.25vw, 17px);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    transition: background 0.15s, color 0.15s;
+  }
+  .skip:hover { background: #fff; color: #111; }
+  .skip .chevron { margin-left: 0.45em; opacity: 0.8; }
 
   .card {
     width: clamp(240px, 24vw, 360px);
@@ -132,6 +148,8 @@
 </style>
 </head>
 <body>
+  <button id="skip" class="panel skip" type="button"><span id="skip-label">Skip Intro</span><span class="chevron">›</span></button>
+
   <section id="card" class="panel card" aria-live="polite">
     <div id="thumb" class="thumb" hidden></div>
     <div class="body">
@@ -152,8 +170,11 @@
   let thumb = null;
 
   iina.onMessage('state', (state) => {
+    const skip = state.kind === 'skip';
     const upNext = state.kind === 'up-next';
+    setShown($('skip'), skip);
     setShown($('card'), upNext);
+    if (skip) $('skip-label').textContent = state.label;
     if (upNext) showUpNext(state);
   });
 
@@ -183,6 +204,7 @@
     if (counting) $('fill').style.width = `${(state.fraction * 100).toFixed(1)}%`;
   }
 
+  $('skip').addEventListener('click', () => iina.postMessage('skip'));
   $('play').addEventListener('click', () => iina.postMessage('play-next'));
   $('dismiss').addEventListener('click', () => iina.postMessage('dismiss'));
 </script>

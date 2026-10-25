@@ -2,14 +2,15 @@
 // When IINA plays a file streamed from Plex Media Server (a /library/parts/… URL, as opened
 // by the Plex → IINA extension), report the playback position back to the server, so
 // Continue Watching and watched status stay in sync. For episodes, also line up the next
-// one in IINA's playlist and show Up Next when the credits start.
+// one in IINA's playlist and show Up Next when the credits start; and where Plex has found
+// the intro or credits, offer to skip them.
 //
 // The extension adds plexRatingKey=<id> to the file URL; Plex ignores it, and we use it to
 // know which library item is playing. The server address and token come from the same URL.
 (() => {
   'use strict';
 
-  const { core, console, event, http, mpv, overlay, playlist, preferences } = iina;
+  const { core, console, event, http, menu, mpv, overlay, playlist, preferences } = iina;
 
   const VERSION = '1.1.0';
   const PART_PATH = /^\/library\/parts\/(\d+)\//;
@@ -231,7 +232,7 @@
 
   // ---- Markers and the next episode ----------------------------------------------
 
-  // Plex's credits markers, and for an episode the next one, which goes into
+  // Plex's intro and credits markers, and for an episode the next one, which goes into
   // IINA's playlist right away: IINA plays it when this one ends (unless "Play next item
   // automatically" is off in its settings), and Next Media reaches it.
   async function lookUp(it) {
@@ -408,12 +409,13 @@
   const isForced = (s) => Boolean(s.forced) || /\bforced\b/i.test(labelOf(s));
   const isSdh = (s) => Boolean(s.hearingImpaired) || /\b(sdh|cc)\b/i.test(labelOf(s));
 
-  // ---- Up Next -------------------------------------------------------------------
+  // ---- Skip Intro, Skip Credits, Up Next -----------------------------------------
 
   const NOTHING = { kind: 'none' };
 
-  // The stretch of the file where Up Next shows: from the start of the end credits.
-  // Without an end-credits marker, it shows for the last seconds and the episode plays out.
+  // The stretches of the file where a button shows: Skip Intro, Skip Credits for credits
+  // with more to come after them, and Up Next from the start of the end credits. Without
+  // an end-credits marker, Up Next shows for the last seconds and the episode plays out.
   function setMoments(it, details) {
     const markers = (details.Marker ?? [])
       .map((m) => ({ type: m.type, start: m.startTimeOffset / 1000, end: m.endTimeOffset / 1000, final: m.final }))
@@ -423,7 +425,10 @@
     // Older servers don't mark the end credits: then it's credits that run to the end.
     const end = it.listedDuration || it.duration;
     it.endCredits = credits.find((m) => m.final) ?? credits.filter((m) => m.end >= end - 15).pop() ?? null;
-    it.moments = [];
+    it.moments = [
+      ...markers.filter((m) => m.type === 'intro').map((m) => ({ ...m, kind: 'skip', label: 'Skip Intro', intro: true })),
+      ...credits.filter((m) => m !== it.endCredits).map((m) => ({ ...m, kind: 'skip', label: 'Skip Credits' })),
+    ];
   }
 
   function addUpNext(it) {
@@ -434,7 +439,7 @@
   }
 
   // Called every second and after seeks, on the main thread (see onMain): decide what the
-  // overlay shows, and act on the Up Next countdown.
+  // overlay shows, and act on automatic intro skipping and the Up Next countdown.
   function refresh(it) {
     showOverlay(item === it ? decide(it) : NOTHING);
   }
@@ -443,13 +448,24 @@
     if (!it.started || it.leaving) return NOTHING;
     const t = it.position;
     const inside = (m) => t >= m.start && t < m.end - 0.5;
-    // A dismissed card comes back if you go back to before it.
+    // A dismissed button comes back if you go back to before it.
     for (const m of it.dismissed) if (!inside(m)) it.dismissed.delete(m);
     const found = it.moments.find(inside);
     const moment = found && !it.dismissed.has(found) ? found : null;
     it.moment = moment;
     if (moment?.kind !== 'up-next') it.deadline = null;
     if (!moment) return NOTHING;
+
+    if (moment.kind === 'skip') {
+      // Automatic skipping happens once: going back to watch the intro is left alone.
+      if (moment.intro && !it.autoSkipped.has(moment) && autoSkipIntros()) {
+        it.autoSkipped.add(moment);
+        core.seekTo(moment.end);
+        core.osd('Skipped the intro');
+        return NOTHING;
+      }
+      return { kind: 'skip', label: moment.label };
+    }
 
     // Up Next. With autoplay, count down: from the end credits, then play the next
     // episode; without the marker, until the episode ends and IINA plays the next.
@@ -483,8 +499,12 @@
     };
   }
 
-  // The overlay page (overlay.html) shows the card and sends back clicks. It loads once
-  // per window; clicks only reach it while the card shows.
+  function autoSkipIntros() {
+    return preferences.get('autoSkipIntros') === true;
+  }
+
+  // The overlay page (overlay.html) shows the buttons and sends back clicks. It loads once
+  // per window; clicks only reach it while a button shows.
   let overlayReady = false;
   let shown = '';
 
@@ -500,6 +520,9 @@
   event.on('iina.plugin-overlay-loaded', () => {
     if (overlayReady) return;
     overlayReady = true;
+    overlay.onMessage('skip', () => {
+      if (item?.moment?.kind === 'skip') core.seekTo(item.moment.end);
+    });
     overlay.onMessage('play-next', () => {
       if (item) playNext(item);
       if (item) refresh(item);
@@ -521,6 +544,21 @@
     overlay.setClickable(state.kind !== 'none');
     overlay.postMessage('state', state);
   }
+
+  // Plugin menu: a checkbox for skipping intros without asking.
+  const autoSkipItem = menu.item('Skip Intros Automatically', () => {
+    const on = !autoSkipIntros();
+    preferences.set('autoSkipIntros', on);
+    preferences.sync();
+    autoSkipItem.selected = on;
+    menu.forceUpdate();
+    if (item) refresh(item);
+  }, { selected: autoSkipIntros() });
+  menu.addItem(autoSkipItem);
+  // Each window has its own menu item; catch up with a change made in another window.
+  event.on('iina.window-main.changed', () => {
+    autoSkipItem.selected = autoSkipIntros();
+  });
 
   // ---- Recognising Plex files ----------------------------------------------------
 
@@ -559,6 +597,7 @@
       moments: [],
       moment: null,
       dismissed: new Set(),
+      autoSkipped: new Set(),
       deadline: null,
     };
   }
