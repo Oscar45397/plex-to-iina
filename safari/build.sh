@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds the Safari version of Plex → IINA and installs it in ~/Applications.
-# languages.js, content.js, download.js, popup.html and popup.js are shared with the Chrome
-# extension in ../plex-to-iina, so run this again after changing them.
+# languages.js, content.js, download.js, popup.html, popup.js and icons/ are shared with the
+# Chrome extension in ../plex-to-iina, so run this again after changing them.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -15,6 +15,7 @@ build_dir="${TMPDIR:-/tmp}/plex-to-iina-safari-build"
 # 1. Assemble the web extension: shared scripts plus Safari's manifest and background.
 mkdir -p "$ext"
 cp "$shared/languages.js" "$shared/content.js" "$shared/download.js" "$shared/popup.html" "$shared/popup.js" "$ext/"
+rm -rf "$ext/icons" && cp -R "$shared/icons" "$ext/icons"
 cp "$here/manifest.json" "$here/background.js" "$ext/"
 
 # 2. Build the Mac app that carries the extension. With an Apple Development certificate

@@ -23,6 +23,7 @@
 		619DDA8430802A1E00FC8E08 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 619DDA7F30802A1E00FC8E08 /* manifest.json */; };
 		619DDA8530802A1E00FC8E08 /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = 619DDA8030802A1E00FC8E08 /* content.js */; };
 		619DDA8F30802A1E00FC8E08 /* languages.js in Resources */ = {isa = PBXBuildFile; fileRef = 619DDA8E30802A1E00FC8E08 /* languages.js */; };
+		1C0A1C0130802A1E00FC8E08 /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 1C0A1C0030802A1E00FC8E08 /* icons */; };
 		D0F0D1A230802A1E00FC8E08 /* DownloadFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */; };
 		D0F0D1A330802A1E00FC8E08 /* DownloadFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */; };
 		D0F0D1A530802A1E00FC8E08 /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F0D1A430802A1E00FC8E08 /* Downloads.swift */; };
@@ -73,6 +74,7 @@
 		619DDA7F30802A1E00FC8E08 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../extension/manifest.json; sourceTree = "<group>"; };
 		619DDA8030802A1E00FC8E08 /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = content.js; path = ../../extension/content.js; sourceTree = "<group>"; };
 		619DDA8E30802A1E00FC8E08 /* languages.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = languages.js; path = ../../extension/languages.js; sourceTree = "<group>"; };
+		1C0A1C0030802A1E00FC8E08 /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = ../../extension/icons; sourceTree = "<group>"; };
 		D0F0D1A130802A1E00FC8E08 /* DownloadFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFolder.swift; sourceTree = "<group>"; };
 		D0F0D1A430802A1E00FC8E08 /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
 		D0F0D1A630802A1E00FC8E08 /* download.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = download.js; path = ../../extension/download.js; sourceTree = "<group>"; };
@@ -159,6 +161,7 @@
 				619DDA7F30802A1E00FC8E08 /* manifest.json */,
 				619DDA8030802A1E00FC8E08 /* content.js */,
 				619DDA8E30802A1E00FC8E08 /* languages.js */,
+				1C0A1C0030802A1E00FC8E08 /* icons */,
 				D0F0D1A630802A1E00FC8E08 /* download.js */,
 			);
 			name = Resources;
@@ -269,6 +272,7 @@
 				619DDA8130802A1E00FC8E08 /* popup.js in Resources */,
 				619DDA8530802A1E00FC8E08 /* content.js in Resources */,
 				619DDA8F30802A1E00FC8E08 /* languages.js in Resources */,
+				1C0A1C0130802A1E00FC8E08 /* icons in Resources */,
 				D0F0D1A730802A1E00FC8E08 /* download.js in Resources */,
 			);
 		};

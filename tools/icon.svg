@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Source of the app and extension icons. Rendered to PNG with Quick Look (qlmanage -t), cut out with a mask of the rounded square, and given a soft shadow. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#343a42"/>
+      <stop offset="1" stop-color="#14171a"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc63d"/>
+      <stop offset="1" stop-color="#e08a00"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#shine)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+  <g stroke-linecap="round" stroke="#f5ad1c" stroke-width="44" fill="none">
+    <line x1="230" y1="420" x2="330" y2="420" stroke-opacity="0.45"/>
+    <line x1="190" y1="512" x2="330" y2="512" stroke-opacity="0.7"/>
+    <line x1="230" y1="604" x2="330" y2="604" stroke-opacity="0.45"/>
+  </g>
+  <path d="M440 330 L440 694 L760 512 Z" fill="url(#amber)" stroke="url(#amber)" stroke-width="70" stroke-linejoin="round"/>
+</svg>
