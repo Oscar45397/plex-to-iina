@@ -21,6 +21,7 @@ struct DownloadJob: Codable {
     let token: String
     let size: Int64
     let label: String
+    let poster: String?  // a small poster image on the same server, for the library
 }
 
 final class Download {
@@ -97,6 +98,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             if onDisk.contains(job.tag) { continue }
             if items.contains(where: { $0.job.tag == job.tag && [.queued, .downloading, .done].contains($0.status) }) { continue }
             items.append(Download(job: job, destination: destination))
+            Posters.fetch(for: job)
             added += 1
         }
         os_log(.default, log: log, "Queued %d of %d files", added, jobs.count)

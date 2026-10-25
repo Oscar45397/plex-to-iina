@@ -9,6 +9,7 @@ import Cocoa
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Posters.prune(keeping: DownloadFolder.existingTags())
         // Once the last download is done, quit if the window was already closed.
         NotificationCenter.default.addObserver(forName: .downloadsFinished, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {

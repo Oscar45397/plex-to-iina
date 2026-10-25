@@ -20,6 +20,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   Plugin menu to keep them. Install the updated plugin package and allow it file access.
 - Play in Plex Web plays your downloaded copy from disk when you have one: the same
   file, without streaming, so nothing to buffer. Needs the updated IINA plugin.
+- The Plex to IINA app (Safari) shows your downloads as a library, with posters, and
+  plays them in IINA with one click. Its window is cleaner and can be resized.
 - Starts on the best audio track in the language Plex picked (lossless first, then the
   most channels) and uses Plex's subtitle choice, so you rarely need to switch tracks
   in IINA, which makes it download its buffer again. On by default; turn it off in the

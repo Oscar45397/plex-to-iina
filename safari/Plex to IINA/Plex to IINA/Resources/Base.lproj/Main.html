@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:">
 
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 
@@ -10,17 +10,35 @@
     <script src="../Script.js" defer></script>
 </head>
 <body>
-    <img src="../Icon.png" width="128" height="128" alt="Plex to IINA Icon">
-    <p class="state-unknown">You can turn on Plex to IINA’s extension in Safari Extensions preferences.</p>
-    <p class="state-on">Plex to IINA’s extension is currently on. You can turn it off in Safari Extensions preferences.</p>
-    <p class="state-off">Plex to IINA’s extension is currently off. You can turn it on in Safari Extensions preferences.</p>
-    <button class="open-preferences">Quit and Open Safari Extensions Preferences…</button>
-    <section id="downloads" hidden>
-        <ul></ul>
-        <div class="download-actions">
-            <button class="show-downloads">Show in Finder</button>
-            <button class="cancel-downloads">Stop Downloads</button>
+    <header>
+        <img class="app-icon" src="../Icon.png" width="40" height="40" alt="">
+        <div class="heading">
+            <h1>Plex to IINA</h1>
+            <p class="extension"><span class="dot"></span><span class="state">Checking the Safari extension…</span>
+                <button class="link open-preferences">Safari Settings…</button></p>
         </div>
-    </section>
+        <button class="icon show-downloads" title="Show the downloads folder in Finder" aria-label="Show in Finder">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2h9A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>
+        </button>
+    </header>
+
+    <main>
+        <section id="downloading" hidden>
+            <div class="section-head">
+                <h2>Downloading</h2>
+                <button class="link cancel-downloads">Stop</button>
+            </div>
+            <ul class="queue"></ul>
+        </section>
+
+        <section id="library">
+            <div class="section-head">
+                <h2>Downloaded</h2>
+                <span class="total"></span>
+            </div>
+            <div class="shelf"></div>
+            <p class="empty" hidden>Nothing downloaded yet. In Plex Web, use <b>Download</b> next to Play.</p>
+        </section>
+    </main>
 </body>
 </html>

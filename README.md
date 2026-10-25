@@ -73,7 +73,8 @@ and the rest download one at a time, so the first episodes are ready first.
 - **Chrome** shows progress in its downloads list.
 - **Safari:** the Plex to IINA app downloads the files, checks free disk space first, and
   shows progress in its window. The first time, macOS may ask to let it use the local
-  network; allow it.
+  network; allow it. The app's window is also your downloads library: shows and films
+  with posters, each with a Play button that opens it in IINA.
 - **Progress:** the IINA plugin remembers where you stopped and what you finished, and
   tells Plex when the server can be reached again. It reaches the server the way your
   last stream from it did, so stream from that server in IINA at least once, and keep

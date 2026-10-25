@@ -273,10 +273,20 @@
     // The token goes in a header, so it doesn't end up in the browser's download list.
     const url = new URL(server.uri + part.key);
     url.searchParams.set('download', '1');
+    // A small poster for the Safari app's library: the show's for an episode.
+    const art = item.type === 'episode' ? item.grandparentThumb ?? item.parentThumb ?? item.thumb : item.thumb;
+    let poster = null;
+    if (art) {
+      poster = new URL(`${server.uri}/photo/:/transcode`);
+      for (const [key, value] of Object.entries({ width: 192, height: 288, minSize: 1, upscale: 1, url: art })) {
+        poster.searchParams.set(key, value);
+      }
+    }
     return {
       tag,
       path,
       url: url.href,
+      poster: poster?.href ?? null,
       token: server.token ?? '',
       size: part.size ?? 0,
       label: item.type === 'episode' ? `${episodeCode(item)}${item.title ? ` · ${item.title}` : ''}` : titleOf(item),
@@ -445,7 +455,7 @@
 
   async function start(plan, total) {
     closePopover();
-    const jobs = plan.files.map(({ tag, path, url, token, size, label }) => ({ tag, path, url, token, size, label }));
+    const jobs = plan.files.map(({ tag, path, url, poster, token, size, label }) => ({ tag, path, url, poster, token, size, label }));
     try {
       const reply = await send({ type: 'download', jobs });
       if (reply.error) throw new Error(reply.error);
