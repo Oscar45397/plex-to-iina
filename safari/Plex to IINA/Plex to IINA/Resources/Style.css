@@ -111,6 +111,12 @@ body.extension-off .dot {
     background: var(--danger);
 }
 
+/* "Safari extension on · Safari Settings…"; while unknown it reads "Turn on … in Safari Settings…". */
+body:is(.extension-on, .extension-off) .open-preferences::before {
+    content: "· ";
+    color: var(--muted);
+}
+
 button.link {
     padding: 0;
     border: 0;
