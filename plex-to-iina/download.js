@@ -15,7 +15,8 @@
   const { ext, note, toast, resolveServer, plexGet, parsePlexLink, titleOf } = shared;
 
   const DETAILS_PLAY = '[data-testid="preplay-play"]';
-  const COUNTS = [1, 2, 3, 5, 10]; // episodes, offered next to the button and in the popup
+  const SEASON = 0; // "Season" in the picker: the rest of the season
+  const COUNTS = [1, 2, 3, 5, 10, SEASON]; // offered next to the button and in the popup
   const DEFAULTS = { downloadButton: true, downloadCount: 3 };
   const DOWNLOADABLE = new Set(['movie', 'show', 'season', 'episode']);
   const FOLDER = 'Plex to IINA';
@@ -136,8 +137,10 @@
           </svg>
           <span class="label">Download</span>
         </button>
-        <select title="How many episodes to download" aria-label="Episodes to download">
-          ${COUNTS.map((n) => `<option value="${n}">${n} episode${n === 1 ? '' : 's'}</option>`).join('')}
+        <select title="How many episodes to download: a number, or the rest of the season" aria-label="Episodes to download">
+          <optgroup label="Episodes to download">
+            ${COUNTS.map((n) => `<option value="${n}">${n === SEASON ? 'Season' : n}</option>`).join('')}
+          </optgroup>
         </select>
       </span>`;
     button = root.querySelector('button');
@@ -208,13 +211,14 @@
 
   // Film: itself. Episode page: that episode and the ones after it. Show or season: from
   // the episode Plex has On Deck (else the first one in progress or unwatched), the next
-  // unwatched ones. Everything watched: from the first episode, for a rewatch.
+  // unwatched ones. Everything watched: from the first episode, for a rewatch. With
+  // SEASON, everything from there to the end of that episode's season.
   async function pickItems(server, item, howMany) {
     if (item.type === 'movie') return [item];
     if (item.type === 'episode') {
       const all = await episodes(server, item.grandparentRatingKey, 'allLeaves');
       const here = all.findIndex((ep) => sameItem(ep, item));
-      return here < 0 ? [item] : all.slice(here, here + howMany);
+      return here < 0 ? [item] : take(all.slice(here), howMany);
     }
     if (item.type !== 'show' && item.type !== 'season') return [];
     const all = await episodes(server, item.ratingKey, item.type === 'show' ? 'allLeaves' : 'children');
@@ -226,8 +230,14 @@
       const next = regular.find((ep) => ep.viewOffset) ?? regular.find((ep) => !ep.viewCount);
       start = next ? all.indexOf(next) : -1;
     }
-    if (start < 0) return regular.slice(0, howMany);
-    return all.slice(start).filter((ep, i) => i === 0 || !ep.viewCount).slice(0, howMany);
+    if (start < 0) return take(regular, howMany);
+    return take(all.slice(start).filter((ep, i) => i === 0 || !ep.viewCount), howMany);
+  }
+
+  // The first howMany episodes, or with SEASON, those in the first one's season.
+  function take(list, howMany) {
+    if (howMany !== SEASON) return list.slice(0, howMany);
+    return list.filter((ep) => ep.parentIndex === list[0]?.parentIndex);
   }
 
   async function episodes(server, ratingKey, list) {

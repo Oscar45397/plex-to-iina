@@ -10,8 +10,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 - **Download** button next to Play: saves the original files of the next episodes, or a
   film, to Downloads › Plex to IINA, to watch in IINA without the server, for example
-  away from home. Choose how many episodes next to the button (the default is in the
-  popup). It shows the total size first, skips files you already have and downloads one
+  away from home. Choose how many episodes next to the button, or the rest of the
+  season (the default is in the popup). It shows the total size first, skips files you already have and downloads one
   at a time. In Safari the Plex to IINA app does the downloading, checks free disk space
   and shows progress; run `safari/build.sh` again to update it.
 - The IINA plugin keeps your position and watched status for downloaded files and sends

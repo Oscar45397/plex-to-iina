@@ -65,8 +65,9 @@ Each IINA window can use that much memory, plus a fifth more to make rewinding i
 On a film, show, season or episode page, **Download** (next to Play) saves the original
 files to **Downloads › Plex to IINA**, so you can watch them in IINA where the server
 can't be reached, for example away from home. Choose how many episodes next to the
-button: a show or season starts at the next episode to watch, an episode page at that
-episode. You see the total size before it starts. Files you already have are skipped,
+button, or **Season** for the rest of that season: a show or season page starts at the
+next episode to watch, an episode page at that episode. You see the total size before
+it starts. Files you already have are skipped,
 and the rest download one at a time, so the first episodes are ready first.
 
 - **Chrome** shows progress in its downloads list.
