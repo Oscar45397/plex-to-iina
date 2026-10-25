@@ -347,6 +347,8 @@
         <ul></ul>
         <p class="skipped" hidden></p>
         <p class="where"></p>
+        <p class="after">Once you've watched one in IINA, it moves to the Trash. To keep them, turn
+          off Move Watched Downloads to Trash in IINA's Plugin menu.</p>
         <p class="space" hidden></p>
         <p class="relay warn" hidden>⚠ Via Plex Relay: downloads will be very slow.</p>
         <div class="actions">
@@ -370,6 +372,7 @@
       $('h2').textContent = plan.skipped.length === 1 ? 'Already downloaded' : `All ${plan.skipped.length} already downloaded`;
       $('ul').remove();
       $('.start').hidden = true;
+      $('.after').hidden = true;
       $('.cancel').textContent = 'OK';
     }
     if (plan.skipped.length && plan.files.length) {

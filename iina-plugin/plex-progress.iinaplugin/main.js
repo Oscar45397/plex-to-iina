@@ -235,12 +235,16 @@
   // A local file carries no server address or token, so remember both from the last file
   // streamed from each server. Progress of downloads therefore syncs only for servers
   // you've streamed from in IINA at least once.
+  //
+  // Once you've watched a download (90%, as Plex counts it) and it closes, move it to the
+  // Trash, unless "Move Watched Downloads to Trash" is unticked in the Plugin menu.
 
   const DOWNLOAD_TAG = /\{plex-([0-9a-f]{8})-(\d+)\}\.[A-Za-z0-9]+$/;
   const SAVE_EVERY_MS = 30000; // while playing, save (and try to send) this often
   const KEEP_MS = 180 * 24 * 3600 * 1000; // give up on progress that couldn't be sent for this long
   const SERVERS_KEY = 'downloadServers'; // { "<server>": { origin, token } }
   const PENDING_KEY = 'downloadProgress'; // { "<server>-<ratingKey>": { …, time, duration, watched, at } }
+  const TRASH_KEY = 'trashWatchedDownloads'; // on unless set to false
 
   // The downloaded file playing in this window, or null.
   let download = null;
@@ -257,6 +261,7 @@
     const match = DOWNLOAD_TAG.exec(decode(path.split('/').pop()));
     if (!match) return;
     download = {
+      path: localPath(path),
       server: match[1],
       ratingKey: match[2],
       position: 0,
@@ -297,7 +302,44 @@
     clearInterval(done.sampler);
     // The last sample is at most a second old; the player may already be closing.
     saveDownload(done);
+    if (done.watched && trashWatched()) trashDownload(done);
   }
+
+  // The progress is already saved, so Plex still learns it was watched.
+  function trashDownload(it) {
+    if (!it.path) return;
+    try {
+      iina.file.trash(it.path);
+      console.log(`Moved the watched download of /library/metadata/${it.ratingKey} to the Trash`);
+      core.osd('Watched: moved the download to the Trash');
+    } catch (err) {
+      console.warn(`Couldn't move the watched download to the Trash: ${err}`);
+    }
+  }
+
+  // An absolute path, from a path or a file:// URL; null for anything else.
+  function localPath(path) {
+    if (path.startsWith('file://')) return decode(path.slice('file://'.length).replace(/^localhost/, ''));
+    return path.startsWith('/') ? path : null;
+  }
+
+  function trashWatched() {
+    return preferences.get(TRASH_KEY) !== false;
+  }
+
+  // Plugin menu: a checkbox for moving watched downloads to the Trash.
+  const trashItem = iina.menu.item('Move Watched Downloads to Trash', () => {
+    const on = !trashWatched();
+    preferences.set(TRASH_KEY, on);
+    preferences.sync();
+    trashItem.selected = on;
+    iina.menu.forceUpdate();
+  }, { selected: trashWatched() });
+  iina.menu.addItem(trashItem);
+  // Each window has its own menu item; catch up with a change made in another window.
+  event.on('iina.window-main.changed', () => {
+    trashItem.selected = trashWatched();
+  });
 
   // Store this file's progress, then try to send everything waiting for its server.
   function saveDownload(it) {

@@ -15,7 +15,9 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   at a time. In Safari the Plex to IINA app does the downloading, checks free disk space
   and shows progress; run `safari/build.sh` again to update it.
 - The IINA plugin keeps your position and watched status for downloaded files and sends
-  them to Plex once the server can be reached again. Install the updated plugin package.
+  them to Plex once the server can be reached again. Once you've watched a download, it
+  moves the file to the Trash; untick **Move Watched Downloads to Trash** in IINA's
+  Plugin menu to keep them. Install the updated plugin package and allow it file access.
 - Starts on the best audio track in the language Plex picked (lossless first, then the
   most channels) and uses Plex's subtitle choice, so you rarely need to switch tracks
   in IINA, which makes it download its buffer again. On by default; turn it off in the

@@ -78,6 +78,10 @@ and the rest download one at a time, so the first episodes are ready first.
   tells Plex when the server can be reached again. It reaches the server the way your
   last stream from it did, so stream from that server in IINA at least once, and keep
   the `{plex-…}` tag in the file names.
+- **After watching:** once you've watched a downloaded episode or film in IINA, the
+  plugin moves the file to the Trash. To keep downloads, untick **Move Watched Downloads
+  to Trash** in IINA's Plugin menu. The plugin asks for file access for this when you
+  install it.
 
 Over wired gigabit Ethernet a 5 GB episode takes about a minute, over Wi-Fi a few
 minutes; Plex Relay is too slow. If the server's owner hasn't allowed downloads for your

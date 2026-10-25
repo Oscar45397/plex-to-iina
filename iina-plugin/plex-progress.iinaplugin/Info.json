@@ -2,14 +2,15 @@
   "name": "Plex Progress",
   "identifier": "local.plex-to-iina.progress",
   "version": "1.1.0",
-  "description": "Reports playback of files streamed from Plex Media Server back to Plex, so Continue Watching and watched status stay in sync. Companion to the Plex → IINA browser extension.",
+  "description": "Reports playback of files streamed from Plex Media Server back to Plex, so Continue Watching and watched status stay in sync. Does the same for files saved with the extension's Download button once the server can be reached, and moves them to the Trash once watched. Companion to the Plex → IINA browser extension.",
   "author": {
     "name": "Plex → IINA"
   },
   "entry": "main.js",
-  "permissions": ["network-request", "show-osd"],
+  "permissions": ["network-request", "show-osd", "file-system"],
   "allowedDomains": ["*"],
   "preferenceDefaults": {
-    "clientIdentifier": ""
+    "clientIdentifier": "",
+    "trashWatchedDownloads": true
   }
 }
