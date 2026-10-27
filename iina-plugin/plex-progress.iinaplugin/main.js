@@ -243,7 +243,21 @@
     if (!details) {
       details = (await plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' }))?.Metadata?.[0];
     }
-    if (!details || item !== it) return;
+    if (item !== it) return;
+    if (!details) {
+      // No answer, for example away from home with a downloaded episode: queue the next
+      // download from the same folder instead.
+      const next = nextDownload(it);
+      if (next) onMain(() => {
+        if (item !== it) return;
+        it.next = next;
+        it.queued = queue(next);
+        console.log(`Up next, from your downloads: /library/metadata/${next.ratingKey}${it.queued ? ', added to the playlist' : ''}`);
+        addUpNext(it);
+        refresh(it);
+      });
+      return;
+    }
     it.streams = streamsOf(partOf(details, it.partId));
     setMoments(it, details);
     if (details.type !== 'episode') return;
@@ -289,6 +303,50 @@
       title: full.title ?? '',
       show: full.grandparentTitle ?? '',
       thumb: full.thumb ? thumbUrl(it, full.thumb) : null,
+    };
+  }
+
+  // The download after this one in its show's folder, in "S01E02 - …" order, for when the
+  // server doesn't answer. Its playlist entry is a stream URL with plexLocal, so it plays
+  // from disk, reports progress like any stream and gets its own Up Next. The part ID is
+  // unknown here; Plex never sees it unless the file is gone by then.
+  function nextDownload(it) {
+    const path = playingDownloads.get(it.ratingKey);
+    if (!path) return null;
+    const folder = path.slice(0, path.lastIndexOf('/'));
+    const order = (name) => {
+      const m = /^S(\d+)E(\d+)/i.exec(name);
+      return m && DOWNLOAD_TAG.test(name) ? [Number(m[1]), Number(m[2])] : null;
+    };
+    let files;
+    try {
+      files = (iina.file.list(folder, {}) || []).filter((e) => !e.isDir && order(e.filename));
+    } catch {
+      return null;
+    }
+    files.sort((a, b) => {
+      const [x, y] = [order(a.filename), order(b.filename)];
+      return x[0] - y[0] || x[1] - y[1];
+    });
+    const here = files.findIndex((e) => DOWNLOAD_TAG.exec(e.filename)[2] === it.ratingKey);
+    const file = here < 0 ? null : files[here + 1];
+    if (!file) return null;
+    const ratingKey = DOWNLOAD_TAG.exec(file.filename)[2];
+    const name = file.filename.replace(/\s*\{plex-[^}]*\}\.[A-Za-z0-9]+$/, '');
+    const label = /^S\d+E\d+/i.exec(name)[0].toUpperCase();
+    const local = `${folder}/${file.filename}`;
+    const query = [
+      it.token && `X-Plex-Token=${encodeURIComponent(it.token)}`,
+      `plexRatingKey=${ratingKey}`,
+      `plexLocal=${encodeURIComponent(local)}`,
+    ].filter(Boolean).join('&');
+    return {
+      ratingKey,
+      url: `${it.origin}/library/parts/0/0/file?${query}`,
+      label,
+      title: name.replace(/^S\d+E\d+\s*-?\s*/i, ''),
+      show: folder.split('/').pop(),
+      thumb: null,
     };
   }
 
@@ -709,6 +767,7 @@
   let download = null;
   const syncing = new Set(); // servers with requests on their way
   const localCopies = new Map(); // stream URL → the downloaded file playing instead
+  const playingDownloads = new Map(); // ratingKey → that file, for nextDownload
 
   mpv.addHook('on_load', 40, () => {
     const url = mpv.getString('stream-open-filename') || '';
@@ -719,6 +778,7 @@
       || downloadedCopy(stream[1], query.plexRatingKey);
     if (local) {
       localCopies.set(url, local);
+      playingDownloads.set(query.plexRatingKey, local);
       mpv.set('stream-open-filename', local);
       mpv.set('cache', 'auto'); // mpv's default: no read-ahead into memory for a file on disk
       console.log(`Playing /library/metadata/${query.plexRatingKey} from its download`);

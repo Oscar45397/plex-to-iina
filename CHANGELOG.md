@@ -6,6 +6,11 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+### Fixed
+
+- **Next episode offline:** a downloaded episode now goes on to the next downloaded
+  episode of the show when the Plex server can't be reached.
+
 ## [2.0.0] - 2026-10-26
 
 Binge a series in IINA, take episodes with you offline, and a cleaner look throughout.
