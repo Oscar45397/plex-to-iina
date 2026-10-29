@@ -7,8 +7,12 @@
 //
 // The extension adds plexRatingKey=<id> to the file URL; Plex ignores it, and we use it to
 // know which library item is playing. The server address and token come from the same URL.
-// It also adds plexStart=<seconds or none>, where the file should start (see the on_load
-// hook).
+// It also adds plexStart=<seconds or none>, where the file should start, and plexAt=<ms>,
+// when the link was made (see the on_load hook).
+//
+// A file downloaded by the extension is treated as the same Plex item (downloadItem): next
+// episode, Up Next and markers work the same; its progress goes through the Downloaded files
+// section, which keeps it until the server answers.
 (() => {
   'use strict';
 
@@ -43,9 +47,12 @@
 
   event.on('iina.file-loaded', (url) => {
     finish();
-    item = parsePlexUrl(mpv.getString('path') || url);
+    const path = mpv.getString('path') || url;
+    item = parsePlexUrl(path) || downloadItem(path);
     if (!item) return;
-    console.log(`Reporting progress of /library/metadata/${item.ratingKey} to ${item.origin}`);
+    console.log(item.local
+      ? `Downloaded file of /library/metadata/${item.ratingKey}: next episode and markers from ${item.origin}`
+      : `Reporting progress of /library/metadata/${item.ratingKey} to ${item.origin}`);
     sample(item);
     item.sampler = setInterval(tick, SAMPLE_MS);
     lookUp(item);
@@ -124,7 +131,8 @@
   function report(it, state = it.paused ? 'paused' : 'playing') {
     // Until the first frame plays, the position is 0, not the resume point; reporting it
     // would wipe the item's place in Continue Watching.
-    if (!it.started) return;
+    // A downloaded file's progress is saved and sent by the Downloaded files section.
+    if (!it.started || it.local) return;
     it.lastReport = Date.now();
     markWatchedIfDone(it);
     const params = {
@@ -390,7 +398,7 @@
   // mean another language in this file.
   mpv.addHook('on_load', 50, async (next) => {
     try {
-      if (mpv.getNumber('playlist-count') < 2) startWhereLinked();
+      if (mpv.getNumber('playlist-count') < 2) await startWhereLinked();
       else await prepareFromPlaylist();
     } catch (err) {
       console.error(`Preparing the next file: ${err}`);
@@ -398,17 +406,39 @@
     next();
   });
 
-  function startWhereLinked() {
+  // A link reopened later, from IINA's history or Open Recent, still carries the start it
+  // was made with. Then resume where Plex says instead, or, if the server doesn't answer,
+  // where IINA saved it.
+  async function startWhereLinked() {
     const path = mpv.getString('path');
     const it = parsePlexUrl(path, { quiet: true });
     const start = it && linkedStart(path);
     if (!start) return; // opened some other way, or by an older extension: leave it to IINA
-    mpv.set('start', start);
-    console.log(`Opening /library/metadata/${it.ratingKey}: start ${start === 'none' ? 'at the beginning' : `at ${Math.round(Number(start))} s`}, as linked`);
+    if (freshLink(path)) {
+      mpv.set('start', start);
+      console.log(`Opening /library/metadata/${it.ratingKey}: start ${start === 'none' ? 'at the beginning' : `at ${Math.round(Number(start))} s`}, as linked`);
+      return;
+    }
+    const details = (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
+    if (!details) {
+      console.log(`Reopening /library/metadata/${it.ratingKey}: Plex didn't answer, resuming where IINA saved it`);
+      return;
+    }
+    const offset = details.viewOffset > 0 ? details.viewOffset / 1000 : 0;
+    mpv.set('start', offset ? String(offset) : 'none');
+    prefetched.set(it.ratingKey, details);
+    console.log(`Reopening /library/metadata/${it.ratingKey}: start ${offset ? `at ${Math.round(offset)} s` : 'at the beginning'}, where Plex says`);
+  }
+
+  // Whether the link was made in the last minute, so it was just clicked in Plex Web.
+  function freshLink(url) {
+    const at = Number(/[?&]plexAt=(\d+)/.exec(url || '')?.[1]);
+    return Boolean(at) && Math.abs(Date.now() - at) < 60000;
   }
 
   async function prepareFromPlaylist() {
-    const it = parsePlexUrl(mpv.getString('path'), { quiet: true });
+    const path = mpv.getString('path');
+    const it = parsePlexUrl(path, { quiet: true }) || downloadItem(path);
     if (!it) return;
     const details = (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
     // Resume where Plex says, like the extension does by default.
@@ -675,11 +705,29 @@
       dismissed: new Set(),
       autoSkipped: new Set(),
       deadline: null,
+      local: false,
     };
   }
 
+  // The Plex item of a file the extension downloaded, from the tag in its name, using the
+  // server address and token remembered for that server; null for other files, or a server
+  // not streamed from yet. Its part ID isn't known, so the first part's details are used.
+  function downloadItem(url) {
+    const path = localPath(url || '');
+    const tag = path && DOWNLOAD_TAG.exec(path.split('/').pop());
+    const server = tag && loadPref(SERVERS_KEY)[tag[1]];
+    if (!server) return null;
+    const it = parsePlexUrl(`${server.origin}/library/parts/0/0/file?plexRatingKey=${tag[2]}`, { quiet: true });
+    if (!it) return null;
+    it.token = server.token;
+    it.local = true;
+    playingDownloads.set(it.ratingKey, path);
+    return it;
+  }
+
   function ratingKeyOf(url) {
-    return /[?&]plexRatingKey=(\d+)/.exec(url || '')?.[1] ?? null;
+    return /[?&]plexRatingKey=(\d+)/.exec(url || '')?.[1]
+      ?? DOWNLOAD_TAG.exec(decode((url || '').split('/').pop()))?.[2] ?? null;
   }
 
   // The start the extension put in the URL: seconds, or 'none' for the beginning. Null

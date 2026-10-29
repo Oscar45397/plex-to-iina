@@ -478,6 +478,9 @@
     // the IINA plugin reads plexStart from the URL and sets the start again after that.
     const start = resume && video.viewOffset > 0 ? String(video.viewOffset / 1000) : 'none';
     file.searchParams.set('plexStart', start);
+    // When this link was made: reopened later from IINA's history, the plugin resumes where
+    // Plex says instead of at plexStart.
+    file.searchParams.set('plexAt', String(Date.now()));
 
     // A downloaded copy (download.js): the IINA plugin plays it from disk instead, if it's
     // still there; same file, no streaming, so no buffering. As ~/…, so the Mac's user
