@@ -976,6 +976,11 @@
 
   function sampleDownload(it) {
     if (download !== it || !it.started) return;
+    // Once IINA moves on to the next file (Up Next), positions are that file's: keep the last.
+    if (ratingKeyOf(mpv.getString('path')) !== it.ratingKey) return;
+    // Watched at the end credits, as Plex counts it for streams, so Up Next from the credits
+    // still counts it as watched.
+    if (item && item.ratingKey === it.ratingKey && item.endCredits && core.status.position >= item.endCredits.start) it.watched = true;
     const position = core.status.position;
     const duration = core.status.duration;
     if (typeof position === 'number' && position >= 0) it.position = position;
