@@ -16,6 +16,11 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   button and Up Next, also offline. Chapters in an unlikely place or of an unlikely
   length are ignored, and chapter intros are never skipped automatically.
 
+### Improved
+
+- **New icon:** the app and the extension now show an amber monitor with a play
+  symbol, so they're no longer easy to mistake for IINA.
+
 ### Fixed
 
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
