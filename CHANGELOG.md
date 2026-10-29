@@ -6,10 +6,27 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+### Added
+
+- **Downloads play like streams:** an episode opened from the Downloads library or
+  from Finder now gets the next episode, Up Next and Skip Intro too (once you've
+  streamed from its server in IINA).
+- **Skip Intro from chapters:** when Plex hasn't marked an episode's intro or credits,
+  chapters named like "Opening", "Intro", "Ending" or "Credits" give the Skip Intro
+  button and Up Next, also offline. Chapters in an unlikely place or of an unlikely
+  length are ignored, and chapter intros are never skipped automatically.
+
+### Improved
+
+- **New icon:** the app and the extension now show an amber monitor with a play
+  symbol, so they're no longer easy to mistake for IINA.
+
 ### Fixed
 
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
   episode of the show when the Plex server can't be reached.
+- **Resume from IINA's history:** reopening an episode from IINA's recent files now
+  starts where Plex says you stopped, instead of where the original link started.
 
 ## [2.0.0] - 2026-10-26
 
