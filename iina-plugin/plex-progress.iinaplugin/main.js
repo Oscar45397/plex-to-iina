@@ -255,6 +255,11 @@
     if (!details) {
       // No answer, for example away from home with a downloaded episode: queue the next
       // download from the same folder instead.
+      onMain(() => {
+        if (item !== it) return;
+        setMoments(it, null);
+        refresh(it);
+      });
       const next = nextDownload(it);
       if (next) onMain(() => {
         if (item !== it) return;
@@ -522,19 +527,66 @@
   // The stretches of the file where a button shows: Skip Intro, Skip Credits for credits
   // with more to come after them, and Up Next from the start of the end credits. Without
   // an end-credits marker, Up Next shows for the last seconds and the episode plays out.
+  // details is null when the server didn't answer; then only the file's chapters count.
   function setMoments(it, details) {
-    const markers = (details.Marker ?? [])
+    const markers = (details?.Marker ?? [])
       .map((m) => ({ type: m.type, start: m.startTimeOffset / 1000, end: m.endTimeOffset / 1000, final: m.final }))
       .filter((m) => m.end > m.start);
-    it.listedDuration = (details.duration ?? 0) / 1000;
+    it.listedDuration = (details?.duration ?? 0) / 1000;
+    // Plex's markers come first; the file's chapters fill in a kind Plex hasn't marked.
+    const fromChapters = chapterMarkers(mpv.getNumber('duration') || it.listedDuration)
+      .filter((c) => !markers.some((m) => m.type === c.type));
+    if (fromChapters.length) {
+      console.log(`From the file's chapters: ${fromChapters.map((c) => `${c.type} ${Math.round(c.start)}-${Math.round(c.end)} s`).join(', ')}`);
+      markers.push(...fromChapters);
+    }
     const credits = markers.filter((m) => m.type === 'credits');
     // Older servers don't mark the end credits: then it's credits that run to the end.
     const end = it.listedDuration || it.duration;
     it.endCredits = credits.find((m) => m.final) ?? credits.filter((m) => m.end >= end - 15).pop() ?? null;
     it.moments = [
-      ...markers.filter((m) => m.type === 'intro').map((m) => ({ ...m, kind: 'skip', label: 'Skip Intro', intro: true })),
+      // Only Plex's intros are skipped automatically; a chapter's intro gets the button.
+      ...markers.filter((m) => m.type === 'intro').map((m) => ({ ...m, kind: 'skip', label: 'Skip Intro', intro: !m.chapter })),
       ...credits.filter((m) => m !== it.endCredits).map((m) => ({ ...m, kind: 'skip', label: 'Skip Credits' })),
     ];
+  }
+
+  // Intro and credits from the file's chapters, as many releases name them ("Opening",
+  // "OP", "Intro", "Ending", "ED", "Credits"). A chapter only counts when it's where and as
+  // long as an intro or credits would be, so a wrongly named chapter can't skip the episode
+  // itself: an intro within the first 35% (at most 10 minutes in) and 10 s to 3 min long,
+  // only one of them; credits in the last 40% and 10 s to 10 min long. Credits count as the
+  // end credits (for Up Next) when at most 2 minutes follow them, such as a preview.
+  const INTRO_CHAPTER = /^(intro|opening|op|opening (song|theme|titles|credits)|title sequence|theme song)( ?\d+)?$/i;
+  const CREDITS_CHAPTER = /^(credits|end credits|closing credits|ending|ed|ending (song|theme|credits)|outro)( ?\d+)?$/i;
+
+  function chapterMarkers(duration) {
+    let list;
+    try {
+      list = mpv.getNative('chapter-list') || [];
+    } catch {
+      return [];
+    }
+    if (!duration || list.length < 2) return [];
+    const intros = [];
+    const credits = [];
+    list.forEach((c, i) => {
+      const title = String(c.title || '').trim();
+      const start = Number(c.time);
+      const end = i + 1 < list.length ? Number(list[i + 1].time) : duration;
+      const length = end - start;
+      if (!(length > 0)) return;
+      if (INTRO_CHAPTER.test(title)) {
+        if (start <= Math.min(600, duration * 0.35) && length >= 10 && length <= 180) intros.push({ type: 'intro', start, end, chapter: true });
+        else console.log(`Ignored the chapter "${title}": not where or as long as an intro`);
+      } else if (CREDITS_CHAPTER.test(title)) {
+        if (start >= duration * 0.6 && length >= 10 && length <= 600) credits.push({ type: 'credits', start, end, chapter: true });
+        else console.log(`Ignored the chapter "${title}": not where or as long as credits`);
+      }
+    });
+    const last = credits[credits.length - 1];
+    if (last && duration - last.end <= 120) last.final = true;
+    return [...(intros.length === 1 ? intros : []), ...credits];
   }
 
   function addUpNext(it) {

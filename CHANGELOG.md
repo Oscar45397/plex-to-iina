@@ -11,6 +11,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 - **Downloads play like streams:** an episode opened from the Downloads library or
   from Finder now gets the next episode, Up Next and Skip Intro too (once you've
   streamed from its server in IINA).
+- **Skip Intro from chapters:** when Plex hasn't marked an episode's intro or credits,
+  chapters named like "Opening", "Intro", "Ending" or "Credits" give the Skip Intro
+  button and Up Next, also offline. Chapters in an unlikely place or of an unlikely
+  length are ignored, and chapter intros are never skipped automatically.
 
 ### Fixed
 
