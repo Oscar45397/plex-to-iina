@@ -27,6 +27,9 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   episode of the show when the Plex server can't be reached.
 - **Resume from IINA's history:** reopening an episode from IINA's recent files now
   starts where Plex says you stopped, instead of where the original link started.
+- **Next episode from disk:** when the next episode is downloaded, Up Next and Play
+  Next now play the downloaded file without contacting the server first, so it starts
+  sooner and isn't buffered like a stream.
 
 ## [2.0.0] - 2026-10-26
 
