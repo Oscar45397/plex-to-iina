@@ -100,6 +100,9 @@ for `docs`. Squash-merge with a Conventional Commit title.
   - `VERSION` in `iina-plugin/plex-progress.iinaplugin/main.js`
   - `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`, +1) in the Xcode project
     (`safari/Plex to IINA/Plex to IINA.xcodeproj/project.pbxproj`)
+- Every tag gets a GitHub release whose notes say simply what changed, in two sections:
+  **New features** (the version's Added and Improved lines) and **Bug fixes** (its Fixed
+  lines). Leave out a section that would be empty.
 
 ## Before committing code
 

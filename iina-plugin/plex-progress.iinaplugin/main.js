@@ -28,14 +28,22 @@
   const LOOKUP_MS = 5000; // how long the next episode may wait for Plex before it starts anyway
   const COUNTDOWN_S = 10; // from the start of the end credits to the next episode
   const UP_NEXT_S = 20; // without end-credits marker: Up Next for the last 20 s (at most 10%)
+  const SKIP_LEAD_S = 3; // Skip Intro and Skip Credits land this long before the marker ends
 
   // The Plex item playing in this window, or null.
   let item = null;
   // The audio and subtitle streams last played (see playingTracks), so the next episode
   // can start with the same languages.
   let lastTracks = null;
-  // Details looked up while an item was being opened, for its file-loaded handler.
+  // Details looked up before an item opens (the next episode, or while it's being opened),
+  // so opening it doesn't wait for the server again: ratingKey → { details, at }.
   const prefetched = new Map();
+  const PREFETCH_MS = 3 * 3600 * 1000; // older than this, ask again: it may have been watched elsewhere
+  const prefetch = (ratingKey, details) => prefetched.set(ratingKey, { details, at: Date.now() });
+  const prefetchedDetails = (ratingKey) => {
+    const hit = prefetched.get(ratingKey);
+    return hit && Date.now() - hit.at < PREFETCH_MS ? hit.details : null;
+  };
 
   // Player events and network replies arrive on IINA's background threads, holding the
   // plugin's lock. Changing the playlist, playing an entry or seeking from there can
@@ -246,7 +254,7 @@
   // IINA's playlist right away: IINA plays it when this one ends (unless "Play next item
   // automatically" is off in its settings), and Next Media reaches it.
   async function lookUp(it) {
-    let details = prefetched.get(it.ratingKey);
+    let details = prefetchedDetails(it.ratingKey);
     prefetched.delete(it.ratingKey);
     if (!details) {
       details = (await plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' }))?.Metadata?.[0];
@@ -304,14 +312,21 @@
       }
     }
     if (!next) return null;
-    // Season lists leave out some details; the episode's own entry has them all.
-    const full = (await plexJson(it, `/library/metadata/${next.ratingKey}`))?.Metadata?.[0] ?? next;
-    const part = bestMedia(full)?.Part?.[0];
+    // Season lists leave out some details; the episode's own entry has them all. Kept for
+    // when it opens (prefetch), so it starts without asking the server again.
+    const full = (await plexJson(it, `/library/metadata/${next.ratingKey}`, { includeMarkers: '1' }))?.Metadata?.[0];
+    const part = full && bestMedia(full)?.Part?.[0];
     if (!part?.key) return null;
     const ratingKey = String(full.ratingKey);
+    prefetch(ratingKey, full);
+    // A downloaded episode goes into the playlist as the file itself, not the stream: IINA
+    // reads the length of what's next in the playlist ahead of time, and opens a stream URL
+    // as a network stream, with buffering, even if the on_load hook then plays the file.
+    const local = downloadedCopy(it.origin, ratingKey);
+    if (local) console.log(`Next episode /library/metadata/${ratingKey} is downloaded: queued from disk`);
     return {
       ratingKey,
-      url: `${it.origin}${part.key}?${it.token ? `X-Plex-Token=${encodeURIComponent(it.token)}&` : ''}plexRatingKey=${ratingKey}`,
+      url: local || `${it.origin}${part.key}?${it.token ? `X-Plex-Token=${encodeURIComponent(it.token)}&` : ''}plexRatingKey=${ratingKey}`,
       label: episodeLabel(full),
       title: full.title ?? '',
       show: full.grandparentTitle ?? '',
@@ -320,9 +335,9 @@
   }
 
   // The download after this one in its show's folder, in "S01E02 - …" order, for when the
-  // server doesn't answer. Its playlist entry is a stream URL with plexLocal, so it plays
-  // from disk, reports progress like any stream and gets its own Up Next. The part ID is
-  // unknown here; Plex never sees it unless the file is gone by then.
+  // server doesn't answer. Its playlist entry is the file itself, which is then a download
+  // like any other (downloadItem): its progress is kept until the server answers, and it
+  // gets its own Up Next.
   function nextDownload(it) {
     const path = playingDownloads.get(it.ratingKey);
     if (!path) return null;
@@ -347,15 +362,9 @@
     const ratingKey = DOWNLOAD_TAG.exec(file.filename)[2];
     const name = file.filename.replace(/\s*\{plex-[^}]*\}\.[A-Za-z0-9]+$/, '');
     const label = /^S\d+E\d+/i.exec(name)[0].toUpperCase();
-    const local = `${folder}/${file.filename}`;
-    const query = [
-      it.token && `X-Plex-Token=${encodeURIComponent(it.token)}`,
-      `plexRatingKey=${ratingKey}`,
-      `plexLocal=${encodeURIComponent(local)}`,
-    ].filter(Boolean).join('&');
     return {
       ratingKey,
-      url: `${it.origin}/library/parts/0/0/file?${query}`,
+      url: `${folder}/${file.filename}`,
       label,
       title: name.replace(/^S\d+E\d+\s*-?\s*/i, ''),
       show: folder.split('/').pop(),
@@ -431,7 +440,7 @@
     }
     const offset = details.viewOffset > 0 ? details.viewOffset / 1000 : 0;
     mpv.set('start', offset ? String(offset) : 'none');
-    prefetched.set(it.ratingKey, details);
+    prefetch(it.ratingKey, details);
     console.log(`Reopening /library/metadata/${it.ratingKey}: start ${offset ? `at ${Math.round(offset)} s` : 'at the beginning'}, where Plex says`);
   }
 
@@ -445,14 +454,15 @@
     const path = mpv.getString('path');
     const it = parsePlexUrl(path, { quiet: true }) || downloadItem(path);
     if (!it) return;
-    const details = (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
+    const details = prefetchedDetails(it.ratingKey)
+      || (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
     // Resume where Plex says, like the extension does by default.
     const offset = details?.viewOffset > 0 ? details.viewOffset / 1000 : 0;
     const tracks = details ? matchTracks(lastTracks, streamsOf(partOf(details, it.partId))) : { aid: 'auto', sid: 'auto' };
     mpv.set('start', offset ? String(offset) : 'none');
     mpv.set('aid', tracks.aid);
     mpv.set('sid', tracks.sid);
-    if (details) prefetched.set(it.ratingKey, details);
+    if (details) prefetch(it.ratingKey, details);
     console.log(`Opening /library/metadata/${it.ratingKey} from the playlist: start ${offset ? `at ${Math.round(offset)} s` : 'at the beginning'}, audio ${tracks.aid}, subtitles ${tracks.sid}`);
   }
 
@@ -618,7 +628,7 @@
       // Automatic skipping happens once: going back to watch the intro is left alone.
       if (moment.intro && !it.autoSkipped.has(moment) && autoSkipIntros()) {
         it.autoSkipped.add(moment);
-        core.seekTo(moment.end);
+        skip(it, moment);
         core.osd('Skipped the intro');
         return NOTHING;
       }
@@ -657,6 +667,15 @@
     };
   }
 
+  // Skipping lands a few seconds before the intro or credits end, so the episode doesn't
+  // start mid-sentence when a marker is a little late. The button stays hidden for those
+  // seconds; it comes back once you're past the end and go back to before it.
+  function skip(it, moment) {
+    const target = Math.max(moment.start, moment.end - SKIP_LEAD_S);
+    it.dismissed.add(moment);
+    if (target > it.position) core.seekTo(target);
+  }
+
   function autoSkipIntros() {
     return preferences.get('autoSkipIntros') === true;
   }
@@ -679,7 +698,9 @@
     if (overlayReady) return;
     overlayReady = true;
     overlay.onMessage('skip', () => {
-      if (item?.moment?.kind === 'skip') core.seekTo(item.moment.end);
+      if (item?.moment?.kind !== 'skip') return;
+      skip(item, item.moment);
+      refresh(item);
     });
     overlay.onMessage('play-next', () => {
       if (item) playNext(item);
@@ -869,10 +890,18 @@
   const localCopies = new Map(); // stream URL → the downloaded file playing instead
   const playingDownloads = new Map(); // ratingKey → that file, for nextDownload
 
+  // mpv's default for a file on disk: no read-ahead into memory, even if the network cache
+  // is turned on in IINA's settings. Only for this file; the next stream keeps the cache.
+  const noCacheForThisFile = () => mpv.set('file-local-options/cache', 'auto');
+
   mpv.addHook('on_load', 40, () => {
     const url = mpv.getString('stream-open-filename') || '';
     const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)\?([^#]*)$/i.exec(url);
-    if (!stream || !PART_PATH.test(stream[2])) return;
+    if (!stream) {
+      if (DOWNLOAD_TAG.test(decode(url.split('/').pop()))) noCacheForThisFile();
+      return;
+    }
+    if (!PART_PATH.test(stream[2])) return;
     const query = parseQuery(stream[3]);
     const local = (query.plexLocal && existingCopy(query.plexLocal, query.plexRatingKey))
       || downloadedCopy(stream[1], query.plexRatingKey);
@@ -880,7 +909,7 @@
       localCopies.set(url, local);
       playingDownloads.set(query.plexRatingKey, local);
       mpv.set('stream-open-filename', local);
-      mpv.set('cache', 'auto'); // mpv's default: no read-ahead into memory for a file on disk
+      noCacheForThisFile();
       console.log(`Playing /library/metadata/${query.plexRatingKey} from its download`);
     } else if (query.plexLocal) {
       // Gone, for example moved to the Trash once watched: stream, without the local path.
