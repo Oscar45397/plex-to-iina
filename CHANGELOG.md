@@ -20,6 +20,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 - **New icon:** the app and the extension now show an amber monitor with a play
   symbol, so they're no longer easy to mistake for IINA.
+- **Skip lands a little early:** Skip Intro and Skip Credits now jump to 3 seconds
+  before the intro or credits end, so you don't miss the first words of the episode.
 
 ### Fixed
 

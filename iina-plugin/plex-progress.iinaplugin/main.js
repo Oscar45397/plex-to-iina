@@ -28,6 +28,7 @@
   const LOOKUP_MS = 5000; // how long the next episode may wait for Plex before it starts anyway
   const COUNTDOWN_S = 10; // from the start of the end credits to the next episode
   const UP_NEXT_S = 20; // without end-credits marker: Up Next for the last 20 s (at most 10%)
+  const SKIP_LEAD_S = 3; // Skip Intro and Skip Credits land this long before the marker ends
 
   // The Plex item playing in this window, or null.
   let item = null;
@@ -627,7 +628,7 @@
       // Automatic skipping happens once: going back to watch the intro is left alone.
       if (moment.intro && !it.autoSkipped.has(moment) && autoSkipIntros()) {
         it.autoSkipped.add(moment);
-        core.seekTo(moment.end);
+        skip(it, moment);
         core.osd('Skipped the intro');
         return NOTHING;
       }
@@ -666,6 +667,15 @@
     };
   }
 
+  // Skipping lands a few seconds before the intro or credits end, so the episode doesn't
+  // start mid-sentence when a marker is a little late. The button stays hidden for those
+  // seconds; it comes back once you're past the end and go back to before it.
+  function skip(it, moment) {
+    const target = Math.max(moment.start, moment.end - SKIP_LEAD_S);
+    it.dismissed.add(moment);
+    if (target > it.position) core.seekTo(target);
+  }
+
   function autoSkipIntros() {
     return preferences.get('autoSkipIntros') === true;
   }
@@ -688,7 +698,9 @@
     if (overlayReady) return;
     overlayReady = true;
     overlay.onMessage('skip', () => {
-      if (item?.moment?.kind === 'skip') core.seekTo(item.moment.end);
+      if (item?.moment?.kind !== 'skip') return;
+      skip(item, item.moment);
+      refresh(item);
     });
     overlay.onMessage('play-next', () => {
       if (item) playNext(item);
