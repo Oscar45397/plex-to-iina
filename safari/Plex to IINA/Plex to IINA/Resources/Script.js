@@ -58,6 +58,11 @@ function keptRow(show) {
     const text = element("div", "kept-text");
     text.append(element("span", "name", show.title),
         element("span", "status", `${show.ready} of ${show.lead} ready · ${lastReached(show.lastReached)}`));
+    if (show.missing?.length) {
+        const missing = element("span", "missing", `Not on the server: ${show.missing.join(", ")}`);
+        missing.title = "Plex doesn't have these episodes, so keep ahead skipped over them.";
+        text.append(missing);
+    }
     const stop = element("button", "link", "Stop");
     stop.title = `Stop keeping ${show.title} ahead`;
     stop.addEventListener("click", () => post({ action: "unkeep", id: show.id }));

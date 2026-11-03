@@ -18,6 +18,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Improved
 
+- **Keep ahead tells you about missing episodes:** when Plex doesn't have some
+  episodes of a show you keep ahead, the Downloads window lists them (for example
+  "Not on the server: S02E01–E04") instead of quietly jumping ahead.
+
 - **New icon:** the app and the extension now show an amber monitor with a play
   symbol, so they're no longer easy to mistake for IINA.
 - **Skip lands a little early:** Skip Intro and Skip Credits now jump to 3 seconds
