@@ -54,6 +54,7 @@ enum Library {
                     "name": name,
                     "poster": list.lazy.compactMap { Posters.dataURL(for: $0.tag) }.first ?? NSNull(),
                     "size": list.reduce(0) { $0 + $1.size },
+                    "kept": KeepAhead.shared.show(named: name).map { ["id": $0.id, "on": $0.paused != true, "lead": $0.lead] as [String: Any] } ?? NSNull(),
                     "episodes": list.map { ["id": $0.url.path, "code": $0.code ?? "", "title": $0.title, "size": $0.size] },
                 ]
             }

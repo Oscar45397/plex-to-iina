@@ -28,6 +28,7 @@ struct KeptShow: Codable {
     var downloaded: [String] = []  // tags queued for this show, so none is fetched twice
     var ready: Int = 0  // unwatched episodes on this Mac or on their way, at the last check
     var lastReached: Date?
+    var paused: Bool? = nil  // switched off in the app or the extension, kept to switch back on
 
     var id: String { "\(server)-\(showKey)" }
 }
@@ -45,6 +46,9 @@ final class KeepAhead {
     private var timer: Timer?
     private let network = NWPathMonitor()
     private var pendingCheck: DispatchWorkItem?
+
+    /// Whether any show is switched on (then the app keeps running and opens at login).
+    var isActive: Bool { shows.contains { $0.paused != true } }
 
     /// Called on the main thread whenever the list or its status changes.
     var onChange: (() -> Void)?
@@ -77,10 +81,12 @@ final class KeepAhead {
         }
         let id = "\(server)-\(showKey)"
         if lead == 0 {
-            shows.removeAll { $0.id == id }
+            // Switched off, not forgotten: it can be switched on again in the app.
+            if let index = shows.firstIndex(where: { $0.id == id }) { shows[index].paused = true }
             os_log(.default, log: log, "Stopped keeping a show ahead")
         } else if let index = shows.firstIndex(where: { $0.id == id }) {
             shows[index].lead = lead
+            shows[index].paused = nil
             shows[index].origin = origin
             shows[index].token = request["token"] as? String ?? ""
         } else {
@@ -95,6 +101,20 @@ final class KeepAhead {
         updateLoginItem()
         if lead > 0 { check(id) }
         return true
+    }
+
+    /// The switch in the app's window.
+    func setOn(_ id: String, _ on: Bool) {
+        guard let index = shows.firstIndex(where: { $0.id == id }) else { return }
+        shows[index].paused = on ? nil : true
+        save()
+        updateLoginItem()
+        if on { check(id) }
+    }
+
+    /// The kept show whose downloads are in this library folder (named as in job(for:)).
+    func show(named folder: String) -> KeptShow? {
+        shows.first { Self.cleanName($0.title) == folder }
     }
 
     func stop(_ id: String) {
@@ -131,13 +151,13 @@ final class KeepAhead {
     }
 
     func checkAll() {
-        for show in shows { check(show.id) }
+        for show in shows where show.paused != true { check(show.id) }
     }
 
     // MARK: - Checking one show
 
     private func check(_ id: String) {
-        guard let show = shows.first(where: { $0.id == id }), !checking.contains(id),
+        guard let show = shows.first(where: { $0.id == id }), show.paused != true, !checking.contains(id),
               let base = URL(string: show.origin) else { return }
         checking.insert(id)
         // Make sure it's this server before sending the token: on another network the same
@@ -282,9 +302,9 @@ final class KeepAhead {
     func updateLoginItem() {
         let service = SMAppService.mainApp
         do {
-            if !shows.isEmpty, service.status != .enabled {
+            if isActive, service.status != .enabled {
                 try service.register()
-            } else if shows.isEmpty, service.status == .enabled {
+            } else if !isActive, service.status == .enabled {
                 try service.unregister()
             }
         } catch {
@@ -300,6 +320,7 @@ final class KeepAhead {
                 "title": show.title,
                 "lead": show.lead,
                 "ready": show.ready,
+                "on": show.paused != true,
                 "lastReached": show.lastReached.map { $0.timeIntervalSince1970 * 1000 } ?? NSNull(),
                 "loginItem": SMAppService.mainApp.status == .enabled ? "on"
                     : SMAppService.mainApp.status == .requiresApproval ? "approve" : "off",

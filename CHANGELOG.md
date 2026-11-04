@@ -8,6 +8,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Added
 
+- **Keep-ahead switch in the app:** shows kept ahead have an on/off switch in the app's
+  window and on their card in the downloads library, so you can turn one back on
+  without going to Plex. Switching it off in Plex keeps the show in the list too;
+  **Remove** forgets it.
 - **Downloads play like streams:** an episode opened from the Downloads library or
   from Finder now gets the next episode, Up Next and Skip Intro too (once you've
   streamed from its server in IINA).
