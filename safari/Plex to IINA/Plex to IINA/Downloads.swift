@@ -103,6 +103,10 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             if onDisk.contains(job.tag) { continue }
             if items.contains(where: { $0.job.tag == job.tag && [.queued, .downloading, .done].contains($0.status) }) { continue }
             items.append(Download(job: job, destination: destination))
+            if let server = KeepAhead.parse(tag: job.tag)?.server, let host = source.host {
+                let port = source.port.map { ":\($0)" } ?? ""
+                KeepAhead.shared.remember(server: server, origin: "\(source.scheme!)://\(host)\(port)", token: job.token)
+            }
             Posters.fetch(for: job)
             added += 1
         }

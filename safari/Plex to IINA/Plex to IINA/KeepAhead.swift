@@ -58,6 +58,74 @@ final class KeepAhead {
            let saved = try? JSONDecoder().decode([KeptShow].self, from: data) {
             shows = saved
         }
+        for show in shows { remember(server: show.server, origin: show.origin, token: show.token) }
+    }
+
+    // MARK: - Servers seen, so a downloaded show can be kept ahead from the app alone
+
+    private static let serversKey = "servers"
+    private struct Server: Codable { var origin: String; var token: String }
+
+    private var servers: [String: Server] {
+        get {
+            UserDefaults.standard.data(forKey: Self.serversKey)
+                .flatMap { try? JSONDecoder().decode([String: Server].self, from: $0) } ?? [:]
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data, forKey: Self.serversKey) }
+        }
+    }
+
+    /// The address and token for a server, from downloads and keep requests (the last one wins).
+    func remember(server: String, origin: String, token: String) {
+        guard server.range(of: #"^[0-9a-f]{8}$"#, options: .regularExpression) != nil,
+              servers[server]?.origin != origin || servers[server]?.token != token else { return }
+        servers[server] = Server(origin: origin, token: token)
+    }
+
+    /// The server and Plex item of a download's tag, "{plex-<server>-<ratingKey>}".
+    static func parse(tag: String) -> (server: String, key: String)? {
+        let parts = tag.trimmingCharacters(in: CharacterSet(charactersIn: "{}")).split(separator: "-")
+        guard parts.count == 3, parts[0] == "plex" else { return nil }
+        return (String(parts[1]), String(parts[2]))
+    }
+
+    /// Whether a download's show can be kept ahead from the app (its server is known).
+    func canKeep(episodeTag tag: String) -> Bool {
+        Self.parse(tag: tag).map { servers[$0.server] != nil } ?? false
+    }
+
+    /// Keep a downloaded show ahead, from the switch on its card: ask its server which show
+    /// the episode belongs to, then keep it from that episode on.
+    func keep(episodeTag tag: String, lead: Int = 5) {
+        guard let (server, key) = Self.parse(tag: tag), let known = servers[server],
+              let base = URL(string: known.origin) else { return }
+        var request = URLRequest(url: base.appendingPathComponent("library/metadata/\(key)"), timeoutInterval: 15)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if !known.token.isEmpty { request.setValue(known.token, forHTTPHeaderField: "X-Plex-Token") }
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            let episode = ((data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])?["MediaContainer"]
+                as? [String: Any])?["Metadata"] as? [[String: Any]]
+            DispatchQueue.main.async {
+                guard let self, let episode = episode?.first, let show = episode["grandparentRatingKey"] else {
+                    os_log(.error, log: self?.log ?? .default, "Couldn't reach the server to keep a show ahead")
+                    self?.onChange?()  // put the switch back
+                    return
+                }
+                let showKey = (show as? String) ?? String(self.number(show))
+                let id = "\(server)-\(showKey)"
+                if let index = self.shows.firstIndex(where: { $0.id == id }) {
+                    self.shows[index].paused = nil
+                } else {
+                    self.shows.append(KeptShow(
+                        server: server, origin: known.origin, token: known.token, showKey: showKey,
+                        title: episode["grandparentTitle"] as? String ?? "Show", lead: lead, from: key))
+                }
+                self.save()
+                self.updateLoginItem()
+                self.check(id)
+            }
+        }.resume()
     }
 
     // MARK: - Requests from the extension
@@ -79,6 +147,7 @@ final class KeepAhead {
             os_log(.error, log: log, "Ignored a link that wasn't a keep-ahead request")
             return false
         }
+        remember(server: server, origin: origin, token: request["token"] as? String ?? "")
         let id = "\(server)-\(showKey)"
         if lead == 0 {
             // Switched off, not forgotten: it can be switched on again in the app.

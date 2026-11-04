@@ -73,7 +73,7 @@ function keepSwitch(id, on, title) {
     const box = document.createElement("input");
     box.type = "checkbox";
     box.checked = on;
-    box.addEventListener("change", () => post({ action: "keep", id, on: box.checked }));
+    if (id) box.addEventListener("change", () => post({ action: "keep", id, on: box.checked }));
     label.append(box, element("span", "track"));
     return label;
 }
@@ -106,6 +106,13 @@ function showCard(show) {
         const keep = element("div", "keep");
         keep.append(keepSwitch(show.kept.id, show.kept.on, `Keep ${show.name} ahead`),
             element("span", "", `Keep ${show.kept.lead} episodes ahead`));
+        body.append(keep);
+    } else if (show.keepFrom) {
+        // Not kept yet: switching on keeps 5 episodes ahead from the first one here.
+        const keep = element("div", "keep");
+        const toggle = keepSwitch(null, false, `Keep ${show.name} ahead`);
+        toggle.querySelector("input").addEventListener("change", () => post({ action: "keep-new", tag: show.keepFrom }));
+        keep.append(toggle, element("span", "", "Keep 5 episodes ahead"));
         body.append(keep);
     }
     const list = element("ul", "episodes");

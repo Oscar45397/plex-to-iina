@@ -106,6 +106,11 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
             showLibrary(force: true)
             return
         }
+        if let body = message.body as? [String: Any], body["action"] as? String == "keep-new",
+           let tag = body["tag"] as? String {
+            KeepAhead.shared.keep(episodeTag: tag)
+            return
+        }
         if let body = message.body as? [String: Any], body["action"] as? String == "keep",
            let id = body["id"] as? String, let on = body["on"] as? Bool {
             KeepAhead.shared.setOn(id, on)
