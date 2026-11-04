@@ -57,19 +57,32 @@ function showKept(state) {
 
 function keptRow(show) {
     const row = element("li");
+    row.classList.toggle("off", !show.on);
     const text = element("div", "kept-text");
     text.append(element("span", "name", show.title),
-        element("span", "status", `${show.ready} of ${show.lead} ready · ${lastReached(show.lastReached)}`));
+        element("span", "status", show.on ? `${show.ready} of ${show.lead} ready · ${lastReached(show.lastReached)}` : "Off"));
     if (show.missing?.length) {
         const missing = element("span", "missing", `Not on the server: ${show.missing.join(", ")}`);
         missing.title = "Plex doesn't have these episodes, so keep ahead skipped over them.";
         text.append(missing);
     }
-    const stop = element("button", "link", "Stop");
-    stop.title = `Stop keeping ${show.title} ahead`;
-    stop.addEventListener("click", () => post({ action: "unkeep", id: show.id }));
-    row.append(text, stop);
+    const remove = element("button", "link", "Remove");
+    remove.title = `Forget ${show.title}: set it up again from Plex to keep it ahead`;
+    remove.addEventListener("click", () => post({ action: "unkeep", id: show.id }));
+    row.append(text, remove, keepSwitch(show.id, show.on, `Keep ${show.title} ahead`));
     return row;
+}
+
+// On and off for a kept show, also on its card in the library.
+function keepSwitch(id, on, title) {
+    const label = element("label", "switch");
+    label.title = title;
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = on;
+    if (id) box.addEventListener("change", () => post({ action: "keep", id, on: box.checked }));
+    label.append(box, element("span", "track"));
+    return label;
 }
 
 function lastReached(time) {
@@ -96,6 +109,19 @@ function showCard(show) {
     const body = element("div", "body");
     const count = show.episodes.length;
     body.append(element("h3", "", show.name), element("p", "meta", `${count} episode${count === 1 ? "" : "s"} · ${formatBytes(show.size)}`));
+    if (show.kept) {
+        const keep = element("div", "keep");
+        keep.append(keepSwitch(show.kept.id, show.kept.on, `Keep ${show.name} ahead`),
+            element("span", "", `Keep ${show.kept.lead} episodes ahead`));
+        body.append(keep);
+    } else if (show.keepFrom) {
+        // Not kept yet: switching on keeps 5 episodes ahead from the first one here.
+        const keep = element("div", "keep");
+        const toggle = keepSwitch(null, false, `Keep ${show.name} ahead`);
+        toggle.querySelector("input").addEventListener("change", () => post({ action: "keep-new", tag: show.keepFrom }));
+        keep.append(toggle, element("span", "", "Keep 5 episodes ahead"));
+        body.append(keep);
+    }
     const list = element("ul", "episodes");
     for (const episode of show.episodes) {
         const row = element("li", "playable");

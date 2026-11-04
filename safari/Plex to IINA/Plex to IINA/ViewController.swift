@@ -30,7 +30,10 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
             self?.showDownloads()
             self?.showLibrary()
         }
-        KeepAhead.shared.onChange = { [weak self] in self?.showKept() }
+        KeepAhead.shared.onChange = { [weak self] in
+            self?.showKept()
+            self?.showLibrary(force: true)  // the keep-ahead switch on a show's card
+        }
         // The library changes outside the app too (IINA moves watched files to the Trash,
         // Chrome downloads into the folder), so look again every few seconds.
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
@@ -100,6 +103,18 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         if let body = message.body as? [String: Any], body["action"] as? String == "unkeep", let id = body["id"] as? String {
             KeepAhead.shared.stop(id)
+            showLibrary(force: true)
+            return
+        }
+        if let body = message.body as? [String: Any], body["action"] as? String == "keep-new",
+           let tag = body["tag"] as? String {
+            KeepAhead.shared.keep(episodeTag: tag)
+            return
+        }
+        if let body = message.body as? [String: Any], body["action"] as? String == "keep",
+           let id = body["id"] as? String, let on = body["on"] as? Bool {
+            KeepAhead.shared.setOn(id, on)
+            showLibrary(force: true)
             return
         }
         // Actions on one downloaded file: { action, id }, where id is its path.

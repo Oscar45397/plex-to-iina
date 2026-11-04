@@ -22,7 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // is kept ahead.
         NotificationCenter.default.addObserver(forName: .downloadsFinished, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
-                if !NSApp.windows.contains(where: \.isVisible), KeepAhead.shared.shows.isEmpty { NSApp.terminate(nil) }
+                if !NSApp.windows.contains(where: \.isVisible), !KeepAhead.shared.isActive { NSApp.terminate(nil) }
             }
         }
         // Shows kept ahead: keep running without a window or Dock icon, checking for the
@@ -32,10 +32,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 // Closing the window is a fresh start for the list, like quitting: the app may
                 // stay running in the background, so clear stopped and failed downloads now.
                 DownloadManager.shared.clearErrors()
-                if !KeepAhead.shared.shows.isEmpty { NSApp.setActivationPolicy(.accessory) }
+                if KeepAhead.shared.isActive { NSApp.setActivationPolicy(.accessory) }
             }
         }
-        if launchedAtLogin, !KeepAhead.shared.shows.isEmpty {
+        if launchedAtLogin, KeepAhead.shared.isActive {
             for window in NSApp.windows { window.orderOut(nil) }
             NSApp.setActivationPolicy(.accessory)
         }
@@ -66,7 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Keep downloading, or keeping shows ahead, in the background.
-        return !DownloadManager.shared.isBusy && KeepAhead.shared.shows.isEmpty
+        return !DownloadManager.shared.isBusy && !KeepAhead.shared.isActive
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

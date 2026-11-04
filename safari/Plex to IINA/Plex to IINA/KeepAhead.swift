@@ -29,6 +29,7 @@ struct KeptShow: Codable {
     var ready: Int = 0  // unwatched episodes on this Mac or on their way, at the last check
     var lastReached: Date?
     var missing: [String]? = nil  // gaps in the episode numbers ahead, like "S02E01–E04"
+    var paused: Bool? = nil  // switched off in the app or the extension, kept to switch back on
 
     var id: String { "\(server)-\(showKey)" }
 }
@@ -47,6 +48,9 @@ final class KeepAhead {
     private let network = NWPathMonitor()
     private var pendingCheck: DispatchWorkItem?
 
+    /// Whether any show is switched on (then the app keeps running and opens at login).
+    var isActive: Bool { shows.contains { $0.paused != true } }
+
     /// Called on the main thread whenever the list or its status changes.
     var onChange: (() -> Void)?
 
@@ -55,6 +59,74 @@ final class KeepAhead {
            let saved = try? JSONDecoder().decode([KeptShow].self, from: data) {
             shows = saved
         }
+        for show in shows { remember(server: show.server, origin: show.origin, token: show.token) }
+    }
+
+    // MARK: - Servers seen, so a downloaded show can be kept ahead from the app alone
+
+    private static let serversKey = "servers"
+    private struct Server: Codable { var origin: String; var token: String }
+
+    private var servers: [String: Server] {
+        get {
+            UserDefaults.standard.data(forKey: Self.serversKey)
+                .flatMap { try? JSONDecoder().decode([String: Server].self, from: $0) } ?? [:]
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data, forKey: Self.serversKey) }
+        }
+    }
+
+    /// The address and token for a server, from downloads and keep requests (the last one wins).
+    func remember(server: String, origin: String, token: String) {
+        guard server.range(of: #"^[0-9a-f]{8}$"#, options: .regularExpression) != nil,
+              servers[server]?.origin != origin || servers[server]?.token != token else { return }
+        servers[server] = Server(origin: origin, token: token)
+    }
+
+    /// The server and Plex item of a download's tag, "{plex-<server>-<ratingKey>}".
+    static func parse(tag: String) -> (server: String, key: String)? {
+        let parts = tag.trimmingCharacters(in: CharacterSet(charactersIn: "{}")).split(separator: "-")
+        guard parts.count == 3, parts[0] == "plex" else { return nil }
+        return (String(parts[1]), String(parts[2]))
+    }
+
+    /// Whether a download's show can be kept ahead from the app (its server is known).
+    func canKeep(episodeTag tag: String) -> Bool {
+        Self.parse(tag: tag).map { servers[$0.server] != nil } ?? false
+    }
+
+    /// Keep a downloaded show ahead, from the switch on its card: ask its server which show
+    /// the episode belongs to, then keep it from that episode on.
+    func keep(episodeTag tag: String, lead: Int = 5) {
+        guard let (server, key) = Self.parse(tag: tag), let known = servers[server],
+              let base = URL(string: known.origin) else { return }
+        var request = URLRequest(url: base.appendingPathComponent("library/metadata/\(key)"), timeoutInterval: 15)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if !known.token.isEmpty { request.setValue(known.token, forHTTPHeaderField: "X-Plex-Token") }
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            let episode = ((data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])?["MediaContainer"]
+                as? [String: Any])?["Metadata"] as? [[String: Any]]
+            DispatchQueue.main.async {
+                guard let self, let episode = episode?.first, let show = episode["grandparentRatingKey"] else {
+                    os_log(.error, log: self?.log ?? .default, "Couldn't reach the server to keep a show ahead")
+                    self?.onChange?()  // put the switch back
+                    return
+                }
+                let showKey = (show as? String) ?? String(self.number(show))
+                let id = "\(server)-\(showKey)"
+                if let index = self.shows.firstIndex(where: { $0.id == id }) {
+                    self.shows[index].paused = nil
+                } else {
+                    self.shows.append(KeptShow(
+                        server: server, origin: known.origin, token: known.token, showKey: showKey,
+                        title: episode["grandparentTitle"] as? String ?? "Show", lead: lead, from: key))
+                }
+                self.save()
+                self.updateLoginItem()
+                self.check(id)
+            }
+        }.resume()
     }
 
     // MARK: - Requests from the extension
@@ -76,12 +148,15 @@ final class KeepAhead {
             os_log(.error, log: log, "Ignored a link that wasn't a keep-ahead request")
             return false
         }
+        remember(server: server, origin: origin, token: request["token"] as? String ?? "")
         let id = "\(server)-\(showKey)"
         if lead == 0 {
-            shows.removeAll { $0.id == id }
+            // Switched off, not forgotten: it can be switched on again in the app.
+            if let index = shows.firstIndex(where: { $0.id == id }) { shows[index].paused = true }
             os_log(.default, log: log, "Stopped keeping a show ahead")
         } else if let index = shows.firstIndex(where: { $0.id == id }) {
             shows[index].lead = lead
+            shows[index].paused = nil
             shows[index].origin = origin
             shows[index].token = request["token"] as? String ?? ""
         } else {
@@ -104,6 +179,20 @@ final class KeepAhead {
         for index in shows.indices { shows[index].downloaded.removeAll { tags.contains($0) } }
         save()
         checkAll()
+    }
+
+    /// The switch in the app's window.
+    func setOn(_ id: String, _ on: Bool) {
+        guard let index = shows.firstIndex(where: { $0.id == id }) else { return }
+        shows[index].paused = on ? nil : true
+        save()
+        updateLoginItem()
+        if on { check(id) }
+    }
+
+    /// The kept show whose downloads are in this library folder (named as in job(for:)).
+    func show(named folder: String) -> KeptShow? {
+        shows.first { Self.cleanName($0.title) == folder }
     }
 
     func stop(_ id: String) {
@@ -140,13 +229,13 @@ final class KeepAhead {
     }
 
     func checkAll() {
-        for show in shows { check(show.id) }
+        for show in shows where show.paused != true { check(show.id) }
     }
 
     // MARK: - Checking one show
 
     private func check(_ id: String) {
-        guard let show = shows.first(where: { $0.id == id }), !checking.contains(id),
+        guard let show = shows.first(where: { $0.id == id }), show.paused != true, !checking.contains(id),
               let base = URL(string: show.origin) else { return }
         checking.insert(id)
         // Make sure it's this server before sending the token: on another network the same
@@ -373,9 +462,9 @@ final class KeepAhead {
     func updateLoginItem() {
         let service = SMAppService.mainApp
         do {
-            if !shows.isEmpty, service.status != .enabled {
+            if isActive, service.status != .enabled {
                 try service.register()
-            } else if shows.isEmpty, service.status == .enabled {
+            } else if !isActive, service.status == .enabled {
                 try service.unregister()
             }
         } catch {
@@ -392,6 +481,7 @@ final class KeepAhead {
                 "lead": show.lead,
                 "ready": show.ready,
                 "missing": show.missing ?? [],
+                "on": show.paused != true,
                 "lastReached": show.lastReached.map { $0.timeIntervalSince1970 * 1000 } ?? NSNull(),
                 "loginItem": SMAppService.mainApp.status == .enabled ? "on"
                     : SMAppService.mainApp.status == .requiresApproval ? "approve" : "off",
