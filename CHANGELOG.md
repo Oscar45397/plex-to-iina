@@ -18,6 +18,10 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Improved
 
+- **Resume and Clear errors for downloads:** the Downloads window can try stopped and
+  failed downloads again, carrying on where they stopped when the server allows it, or
+  clear them from the list. Closing the window clears them too. Downloads also wait
+  longer for a slow server to answer.
 - **Keep ahead tells you about missing episodes:** when Plex doesn't have some
   episodes of a show you keep ahead, the Downloads window lists them (for example
   "Not on the server: S02E01–E04") instead of quietly jumping ahead.

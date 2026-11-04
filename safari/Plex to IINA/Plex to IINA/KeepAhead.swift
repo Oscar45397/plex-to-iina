@@ -98,6 +98,14 @@ final class KeepAhead {
         return true
     }
 
+    /// Downloads that never finished and were cleared from the list: fetch them again.
+    func forget(_ tags: Set<String>) {
+        guard !tags.isEmpty else { return }
+        for index in shows.indices { shows[index].downloaded.removeAll { tags.contains($0) } }
+        save()
+        checkAll()
+    }
+
     func stop(_ id: String) {
         shows.removeAll { $0.id == id }
         save()
