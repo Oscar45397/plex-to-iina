@@ -295,22 +295,24 @@
   }
 
   // The next episode in Plex's order: the next one in this season, else the first episode of
-  // the next season that has any. Specials (season 0) come first in a show, so they're only
-  // reached from another special.
+  // a later season. The season's own list is quick; past its end, the show's full episode
+  // list (allLeaves) is used rather than walking its seasons, which some servers list in a
+  // way that doesn't match the episode's season (so Up Next went missing at a season's
+  // end). Specials (season 0) come first in a show, so they're only reached from another
+  // special.
   async function nextEpisode(it, details) {
-    const children = async (key) => (await plexJson(it, `/library/metadata/${key}/children`))?.Metadata ?? [];
-    const episodes = (await children(details.parentRatingKey)).filter((m) => m.type === 'episode');
-    const here = episodes.findIndex((ep) => String(ep.ratingKey) === it.ratingKey);
-    if (here < 0) return null;
-    let next = episodes[here + 1];
-    if (!next) {
-      const seasons = (await children(details.grandparentRatingKey)).filter((m) => m.type === 'season');
-      const season = seasons.findIndex((s) => String(s.ratingKey) === String(details.parentRatingKey));
-      for (const s of season < 0 ? [] : seasons.slice(season + 1)) {
-        next = (await children(s.ratingKey)).find((m) => m.type === 'episode');
-        if (next) break;
-      }
+    const list = async (path) => ((await plexJson(it, path))?.Metadata ?? []).filter((m) => m.type === 'episode');
+    const isHere = (ep) => String(ep.ratingKey) === it.ratingKey;
+    const episodes = await list(`/library/metadata/${details.parentRatingKey}/children`);
+    let next = episodes.findIndex(isHere) >= 0 ? episodes[episodes.findIndex(isHere) + 1] : null;
+    if (!next && details.grandparentRatingKey) {
+      const season = Number(details.parentIndex) || 0;
+      const all = await list(`/library/metadata/${details.grandparentRatingKey}/allLeaves`);
+      const here = all.findIndex(isHere);
+      next = (here >= 0 ? all.slice(here + 1) : all)
+        .find((ep) => (Number(ep.parentIndex) || 0) > season || (here >= 0 && (Number(ep.parentIndex) || 0) === season));
     }
+    if (!next) console.log(`No next episode after /library/metadata/${it.ratingKey}`);
     if (!next) return null;
     // Season lists leave out some details; the episode's own entry has them all. Kept for
     // when it opens (prefetch), so it starts without asking the server again.

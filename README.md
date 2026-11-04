@@ -76,7 +76,8 @@ have are skipped, and the rest download one at a time.
 - **Keep ahead:** tick **Keep … episodes ready** in the Download panel and the Plex to
   IINA app downloads the next episodes whenever it can reach your server (every 15
   minutes, on wake and on network changes, also in the background). This needs the app,
-  in Chrome too: build it with `safari/build.sh`.
+  in Chrome too: build it with `safari/build.sh`. Switch a show off and on again in the
+  app's window, or on its card in the library.
 - **Safari:** the app does the downloading, checks free disk space and shows progress.
   Its window is your downloads library, with posters and a Play button for each item.
   Allow it to use the local network if macOS asks.

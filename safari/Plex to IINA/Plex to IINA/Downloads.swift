@@ -35,6 +35,7 @@ final class Download {
     var received: Int64 = 0
     var total: Int64
     var savedAs: URL?
+    var resumeData: Data?  // from a stopped or failed download, to carry on where it was
 
     init(job: DownloadJob, destination: URL) {
         self.job = job
@@ -103,6 +104,10 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             if onDisk.contains(job.tag) { continue }
             if items.contains(where: { $0.job.tag == job.tag && [.queued, .downloading, .done].contains($0.status) }) { continue }
             items.append(Download(job: job, destination: destination))
+            if let server = KeepAhead.parse(tag: job.tag)?.server, let host = source.host {
+                let port = source.port.map { ":\($0)" } ?? ""
+                KeepAhead.shared.remember(server: server, origin: "\(source.scheme!)://\(host)\(port)", token: job.token)
+            }
             Posters.fetch(for: job)
             added += 1
         }
@@ -129,7 +134,11 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         var request = URLRequest(url: url)
         if !item.job.token.isEmpty { request.setValue(item.job.token, forHTTPHeaderField: "X-Plex-Token") }
         request.setValue("Plex to IINA", forHTTPHeaderField: "X-Plex-Product")
-        let task = session.downloadTask(with: request)
+        // A slow disk on the server (a NAS waking up) can take a while to start sending.
+        request.timeoutInterval = 180
+        // Carry on from where it stopped when the server allows it; otherwise start over.
+        let task = item.resumeData.map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
+        item.resumeData = nil
         item.status = .downloading
         current = (item, task)
         task.resume()
@@ -140,8 +149,37 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         for item in items where item.status == .queued { item.status = .cancelled }
         if let current {
             current.item.status = .cancelled
-            current.task.cancel()
+            let item = current.item
+            current.task.cancel { data in
+                DispatchQueue.main.async { item.resumeData = data }
+            }
         }
+        changed()
+    }
+
+    /// Tries the stopped and failed downloads again, from where they were if possible.
+    func resumeAll() {
+        for item in items {
+            switch item.status {
+            case .failed, .cancelled:
+                item.status = .queued
+                item.received = 0
+            default: break
+            }
+        }
+        startNext()
+        changed()
+    }
+
+    /// Removes the stopped and failed downloads from the list. Kept-ahead shows may then
+    /// fetch those episodes again at their next check.
+    func clearErrors() {
+        let gone = items.filter {
+            if case .failed = $0.status { return true }
+            return $0.status == .cancelled
+        }
+        items.removeAll { item in gone.contains { $0 === item } }
+        KeepAhead.shared.forget(Set(gone.map(\.job.tag)))
         changed()
     }
 
@@ -195,6 +233,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         guard let item = current?.item, current?.task === task else { return }
         current = nil
         if let error, item.status == .downloading {
+            item.resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
             item.status = .failed(error.localizedDescription)
         } else if item.status == .downloading {
             item.status = .failed("The download stopped")
@@ -257,7 +296,11 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             }
             return entry
         }
-        return ["items": list, "busy": isBusy, "folder": DownloadFolder.url.path]
+        let stopped = items.contains {
+            if case .failed = $0.status { return true }
+            return $0.status == .cancelled
+        }
+        return ["items": list, "busy": isBusy, "stopped": stopped, "folder": DownloadFolder.url.path]
     }
 
     func revealFolder() {

@@ -8,6 +8,11 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Added
 
+- **Keep-ahead switch in the app:** shows kept ahead have an on/off switch in the app's
+  window and on their card in the downloads library, so you can turn one back on
+  without going to Plex. Switching it off in Plex keeps the show in the list too;
+  **Remove** forgets it. Any downloaded show gets the switch too, once the app has
+  downloaded something from its server, so you can start keeping it ahead from the app.
 - **Downloads play like streams:** an episode opened from the Downloads library or
   from Finder now gets the next episode, Up Next and Skip Intro too (once you've
   streamed from its server in IINA).
@@ -17,6 +22,14 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
   length are ignored, and chapter intros are never skipped automatically.
 
 ### Improved
+
+- **Resume and Clear errors for downloads:** the Downloads window can try stopped and
+  failed downloads again, carrying on where they stopped when the server allows it, or
+  clear them from the list. Closing the window clears them too. Downloads also wait
+  longer for a slow server to answer.
+- **Keep ahead tells you about missing episodes:** when Plex doesn't have some
+  episodes of a show you keep ahead, the Downloads window lists them (for example
+  "Not on the server: S02E01–E04") instead of quietly jumping ahead.
 
 - **New icon:** the app and the extension now show an amber monitor with a play
   symbol, so they're no longer easy to mistake for IINA.
@@ -28,6 +41,11 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 - **One Download button after an update:** updating or reloading the extension no
   longer adds another Download button to an open Plex tab, and Play no longer gets
   caught by the old copy of the extension.
+- **Keep ahead waits for whole files:** an episode still being copied onto the server
+  is no longer downloaded half-finished. Keep ahead waits until it's complete (and at
+  least 10 minutes old) and fetches it at a later check.
+- **Up Next at the end of a season:** the last episode of a season now always lines
+  up the next season's first episode, on servers where it used to show no Up Next.
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
   episode of the show when the Plex server can't be reached.
 - **Resume from IINA's history:** reopening an episode from IINA's recent files now
