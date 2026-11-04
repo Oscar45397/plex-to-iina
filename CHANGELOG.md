@@ -20,7 +20,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 - **Resume and Clear errors for downloads:** the Downloads window can try stopped and
   failed downloads again, carrying on where they stopped when the server allows it, or
-  clear them from the list. Downloads also wait longer for a slow server to answer.
+  clear them from the list. Closing the window clears them too. Downloads also wait
+  longer for a slow server to answer.
 - **New icon:** the app and the extension now show an amber monitor with a play
   symbol, so they're no longer easy to mistake for IINA.
 - **Skip lands a little early:** Skip Intro and Skip Credits now jump to 3 seconds
