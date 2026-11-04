@@ -25,6 +25,9 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Fixed
 
+- **One Download button after an update:** updating or reloading the extension no
+  longer adds another Download button to an open Plex tab, and Play no longer gets
+  caught by the old copy of the extension.
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
   episode of the show when the Plex server can't be reached.
 - **Resume from IINA's history:** reopening an episode from IINA's recent files now

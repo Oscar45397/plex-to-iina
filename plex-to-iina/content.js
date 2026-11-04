@@ -65,6 +65,17 @@
   window.addEventListener('mousedown', onDialogMouse, true);
   window.addEventListener('mouseup', onDialogMouse, true);
 
+  // When the extension is updated or reloaded, Safari and Chrome add the new scripts to open
+  // tabs while the old ones keep running, cut off from the extension. Then an old copy could
+  // catch Play first and fail, and every copy adds its own Download button. So the newest
+  // copy tells older ones to stop (download.js listens too).
+  document.dispatchEvent(new CustomEvent('plex-to-iina:retire'));
+  document.addEventListener('plex-to-iina:retire', () => {
+    window.removeEventListener('click', onClick, true);
+    window.removeEventListener('mousedown', onDialogMouse, true);
+    window.removeEventListener('mouseup', onDialogMouse, true);
+  }, { once: true });
+
   function onClick(event) {
     if (replaying || event.button !== 0 || !(event.target instanceof Element)) return;
     const choice = resumeDialogChoice(event.target);
