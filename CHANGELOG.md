@@ -25,6 +25,9 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Fixed
 
+- **Keep ahead waits for whole files:** an episode still being copied onto the server
+  is no longer downloaded half-finished. Keep ahead waits until it's complete (and at
+  least 10 minutes old) and fetches it at a later check.
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
   episode of the show when the Plex server can't be reached.
 - **Resume from IINA's history:** reopening an episode from IINA's recent files now

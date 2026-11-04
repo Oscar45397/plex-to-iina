@@ -195,16 +195,65 @@ final class KeepAhead {
         let next = episodes.dropFirst(frontier + 1)
             .filter { !watched($0) && !history.contains(tag($0)) }
             .prefix(max(0, show.lead - ready))
-        let jobs = next.compactMap { job(for: $0, show: show) }
+        // Leave out episodes added in the last few minutes: they may still be copying onto
+        // the server, and Plex lists a file as soon as it appears.
+        let settled = Date().timeIntervalSince1970 - Self.settleTime
+        let candidates = next.prefix { Double(number($0["addedAt"])) < settled }
+            .compactMap { job(for: $0, show: show) }
 
-        show.ready = ready + jobs.count
+        show.ready = ready
         show.lastReached = Date()
-        show.downloaded.append(contentsOf: jobs.map(\.tag))
         shows[index] = show
         save()
-        if !jobs.isEmpty {
-            os_log(.default, log: log, "Topping up a kept show with %d episodes", jobs.count)
-            DownloadManager.shared.add(jobs)
+        whole(candidates) { [weak self] jobs in
+            guard let self, let index = self.shows.firstIndex(where: { $0.id == id }) else { return }
+            self.shows[index].ready = ready + jobs.count
+            self.shows[index].downloaded.append(contentsOf: jobs.map(\.tag))
+            self.save()
+            if !jobs.isEmpty {
+                os_log(.default, log: self.log, "Topping up a kept show with %d episodes", jobs.count)
+                DownloadManager.shared.add(jobs)
+            }
+        }
+    }
+
+    private static let settleTime: TimeInterval = 10 * 60
+
+    /// The jobs, in order, up to the first whose file isn't complete on the server: its size
+    /// now (asked with HEAD) must match the size Plex recorded. A file still being written
+    /// is bigger now, or Plex hasn't finished reading it. The rest wait for the next check.
+    private func whole(_ jobs: [DownloadJob], then done: @escaping ([DownloadJob]) -> Void) {
+        var sizes = [Int64?](repeating: nil, count: jobs.count)
+        let group = DispatchGroup()
+        for (i, job) in jobs.enumerated() {
+            guard let url = URL(string: job.url) else { continue }
+            var request = URLRequest(url: url, timeoutInterval: 30)
+            request.httpMethod = "HEAD"
+            if !job.token.isEmpty { request.setValue(job.token, forHTTPHeaderField: "X-Plex-Token") }
+            group.enter()
+            URLSession.shared.dataTask(with: request) { _, response, _ in
+                let http = response as? HTTPURLResponse
+                // -1: the server can't tell (no HEAD support or no size given), so don't hold
+                // the episode back for it; nil: no answer or an error, so try again later.
+                let size: Int64? = http.flatMap {
+                    [405, 501].contains($0.statusCode) ? -1
+                        : (200..<300).contains($0.statusCode) ? max($0.expectedContentLength, -1) : nil
+                }
+                DispatchQueue.main.async {
+                    sizes[i] = size
+                    group.leave()
+                }
+            }.resume()
+        }
+        group.notify(queue: .main) {
+            let ready = zip(jobs, sizes).prefix { job, size in
+                guard let size else { return false }
+                return size < 0 || job.size <= 0 || size == job.size
+            }.map(\.0)
+            if ready.count < jobs.count {
+                os_log(.default, log: self.log, "%d episodes aren't complete on the server yet", jobs.count - ready.count)
+            }
+            done(ready)
         }
     }
 
