@@ -38,6 +38,9 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Fixed
 
+- **One Download button after an update:** updating or reloading the extension no
+  longer adds another Download button to an open Plex tab, and Play no longer gets
+  caught by the old copy of the extension.
 - **Keep ahead waits for whole files:** an episode still being copied onto the server
   is no longer downloaded half-finished. Keep ahead waits until it's complete (and at
   least 10 minutes old) and fetches it at a later check.

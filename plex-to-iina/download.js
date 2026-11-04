@@ -55,11 +55,23 @@
       update();
     });
   }
-  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('hashchange', schedule);
   window.addEventListener('popstate', schedule);
+  // A newer copy of the extension's scripts took over this tab (see content.js): step aside.
+  let retired = false;
+  document.addEventListener('plex-to-iina:retire', () => {
+    retired = true;
+    observer.disconnect();
+    window.removeEventListener('hashchange', schedule);
+    window.removeEventListener('popstate', schedule);
+    host?.remove();
+    closePopover();
+  }, { once: true });
 
   function update() {
+    if (retired) return;
     const play = settings.downloadButton ? document.querySelector(DETAILS_PLAY) : null;
     const target = play ? parsePlexLink(location.href) : null;
     if (!target) {
