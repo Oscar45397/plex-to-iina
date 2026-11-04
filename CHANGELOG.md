@@ -6,6 +6,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-05
+
 ### Added
 
 - **Keep-ahead switch in the app:** shows kept ahead have an on/off switch in the app's
