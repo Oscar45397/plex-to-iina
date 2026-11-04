@@ -424,6 +424,11 @@ button.play:hover {
     flex-direction: column;
 }
 
+.kept .missing {
+    color: #e0a030;
+    font-size: 12px;
+}
+
 .kept .status,
 .login {
     color: var(--muted);
