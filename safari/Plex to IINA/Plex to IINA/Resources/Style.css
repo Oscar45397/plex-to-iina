@@ -424,8 +424,22 @@ button.play:hover {
     flex-direction: column;
 }
 
+.kept .missing {
+    color: #e0a030;
+    font-size: 12px;
+}
+
 .kept .status,
 .login {
     color: var(--muted);
     font-size: 12px;
+}
+
+.section-head .actions {
+    display: flex;
+    gap: 16px;
+}
+
+.section-head .actions [hidden] {
+    display: none;
 }

@@ -28,6 +28,7 @@ struct KeptShow: Codable {
     var downloaded: [String] = []  // tags queued for this show, so none is fetched twice
     var ready: Int = 0  // unwatched episodes on this Mac or on their way, at the last check
     var lastReached: Date?
+    var missing: [String]? = nil  // gaps in the episode numbers ahead, like "S02E01–E04"
 
     var id: String { "\(server)-\(showKey)" }
 }
@@ -95,6 +96,14 @@ final class KeepAhead {
         updateLoginItem()
         if lead > 0 { check(id) }
         return true
+    }
+
+    /// Downloads that never finished and were cleared from the list: fetch them again.
+    func forget(_ tags: Set<String>) {
+        guard !tags.isEmpty else { return }
+        for index in shows.indices { shows[index].downloaded.removeAll { tags.contains($0) } }
+        save()
+        checkAll()
     }
 
     func stop(_ id: String) {
@@ -202,6 +211,7 @@ final class KeepAhead {
             .compactMap { job(for: $0, show: show) }
 
         show.ready = ready
+        show.missing = gaps(in: episodes, after: episodes.firstIndex { !watched($0) } ?? episodes.count)
         show.lastReached = Date()
         shows[index] = show
         save()
@@ -255,6 +265,38 @@ final class KeepAhead {
             }
             done(ready)
         }
+    }
+
+    /// Episodes the server doesn't have, from the first unwatched one on, so the window can
+    /// say so instead of silently jumping from, say, S01E24 to S02E05.
+    private func gaps(in episodes: [[String: Any]], after start: Int) -> [String] {
+        guard start < episodes.count else { return [] }
+        var result: [String] = []
+        func add(_ season: Int, _ first: Int, _ last: Int) {
+            guard first <= last else { return }
+            let from = String(format: "S%02dE%02d", season, first)
+            result.append(first == last ? from : from + String(format: "–E%02d", last))
+        }
+        // Compare each episode with the one before it (also the last watched one, so a gap
+        // right where you are counts too).
+        var previous: (season: Int, index: Int)? = start > 0
+            ? (number(episodes[start - 1]["parentIndex"]), number(episodes[start - 1]["index"])) : nil
+        for episode in episodes[start...] {
+            let season = number(episode["parentIndex"]), index = number(episode["index"])
+            guard season > 0, index > 0 else { continue }
+            if let previous, previous.season == season {
+                add(season, previous.index + 1, index - 1)
+            } else if let previous, season > previous.season + 1 {
+                result.append(season - previous.season == 2
+                    ? String(format: "season %d", previous.season + 1)
+                    : String(format: "seasons %d–%d", previous.season + 1, season - 1))
+                add(season, 1, index - 1)
+            } else {
+                add(season, 1, index - 1)
+            }
+            previous = (season, index)
+        }
+        return result
     }
 
     // MARK: - Files, named like the extension's (download.js)
@@ -349,6 +391,7 @@ final class KeepAhead {
                 "title": show.title,
                 "lead": show.lead,
                 "ready": show.ready,
+                "missing": show.missing ?? [],
                 "lastReached": show.lastReached.map { $0.timeIntervalSince1970 * 1000 } ?? NSNull(),
                 "loginItem": SMAppService.mainApp.status == .enabled ? "on"
                     : SMAppService.mainApp.status == .requiresApproval ? "approve" : "off",
