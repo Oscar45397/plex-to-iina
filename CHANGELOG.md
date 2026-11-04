@@ -29,6 +29,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Fixed
 
+- **Up Next at the end of a season:** the last episode of a season now always lines
+  up the next season's first episode, on servers where it used to show no Up Next.
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
   episode of the show when the Plex server can't be reached.
 - **Resume from IINA's history:** reopening an episode from IINA's recent files now
