@@ -28,6 +28,7 @@ struct KeptShow: Codable {
     var downloaded: [String] = []  // tags queued for this show, so none is fetched twice
     var ready: Int = 0  // unwatched episodes on this Mac or on their way, at the last check
     var lastReached: Date?
+    var missing: [String]? = nil  // gaps in the episode numbers ahead, like "S02E01–E04"
     var paused: Bool? = nil  // switched off in the app or the extension, kept to switch back on
 
     var id: String { "\(server)-\(showKey)" }
@@ -172,6 +173,14 @@ final class KeepAhead {
         return true
     }
 
+    /// Downloads that never finished and were cleared from the list: fetch them again.
+    func forget(_ tags: Set<String>) {
+        guard !tags.isEmpty else { return }
+        for index in shows.indices { shows[index].downloaded.removeAll { tags.contains($0) } }
+        save()
+        checkAll()
+    }
+
     /// The switch in the app's window.
     func setOn(_ id: String, _ on: Bool) {
         guard let index = shows.firstIndex(where: { $0.id == id }) else { return }
@@ -284,17 +293,99 @@ final class KeepAhead {
         let next = episodes.dropFirst(frontier + 1)
             .filter { !watched($0) && !history.contains(tag($0)) }
             .prefix(max(0, show.lead - ready))
-        let jobs = next.compactMap { job(for: $0, show: show) }
+        // Leave out episodes added in the last few minutes: they may still be copying onto
+        // the server, and Plex lists a file as soon as it appears.
+        let settled = Date().timeIntervalSince1970 - Self.settleTime
+        let candidates = next.prefix { Double(number($0["addedAt"])) < settled }
+            .compactMap { job(for: $0, show: show) }
 
-        show.ready = ready + jobs.count
+        show.ready = ready
+        show.missing = gaps(in: episodes, after: episodes.firstIndex { !watched($0) } ?? episodes.count)
         show.lastReached = Date()
-        show.downloaded.append(contentsOf: jobs.map(\.tag))
         shows[index] = show
         save()
-        if !jobs.isEmpty {
-            os_log(.default, log: log, "Topping up a kept show with %d episodes", jobs.count)
-            DownloadManager.shared.add(jobs)
+        whole(candidates) { [weak self] jobs in
+            guard let self, let index = self.shows.firstIndex(where: { $0.id == id }) else { return }
+            self.shows[index].ready = ready + jobs.count
+            self.shows[index].downloaded.append(contentsOf: jobs.map(\.tag))
+            self.save()
+            if !jobs.isEmpty {
+                os_log(.default, log: self.log, "Topping up a kept show with %d episodes", jobs.count)
+                DownloadManager.shared.add(jobs)
+            }
         }
+    }
+
+    private static let settleTime: TimeInterval = 10 * 60
+
+    /// The jobs, in order, up to the first whose file isn't complete on the server: its size
+    /// now (asked with HEAD) must match the size Plex recorded. A file still being written
+    /// is bigger now, or Plex hasn't finished reading it. The rest wait for the next check.
+    private func whole(_ jobs: [DownloadJob], then done: @escaping ([DownloadJob]) -> Void) {
+        var sizes = [Int64?](repeating: nil, count: jobs.count)
+        let group = DispatchGroup()
+        for (i, job) in jobs.enumerated() {
+            guard let url = URL(string: job.url) else { continue }
+            var request = URLRequest(url: url, timeoutInterval: 30)
+            request.httpMethod = "HEAD"
+            if !job.token.isEmpty { request.setValue(job.token, forHTTPHeaderField: "X-Plex-Token") }
+            group.enter()
+            URLSession.shared.dataTask(with: request) { _, response, _ in
+                let http = response as? HTTPURLResponse
+                // -1: the server can't tell (no HEAD support or no size given), so don't hold
+                // the episode back for it; nil: no answer or an error, so try again later.
+                let size: Int64? = http.flatMap {
+                    [405, 501].contains($0.statusCode) ? -1
+                        : (200..<300).contains($0.statusCode) ? max($0.expectedContentLength, -1) : nil
+                }
+                DispatchQueue.main.async {
+                    sizes[i] = size
+                    group.leave()
+                }
+            }.resume()
+        }
+        group.notify(queue: .main) {
+            let ready = zip(jobs, sizes).prefix { job, size in
+                guard let size else { return false }
+                return size < 0 || job.size <= 0 || size == job.size
+            }.map(\.0)
+            if ready.count < jobs.count {
+                os_log(.default, log: self.log, "%d episodes aren't complete on the server yet", jobs.count - ready.count)
+            }
+            done(ready)
+        }
+    }
+
+    /// Episodes the server doesn't have, from the first unwatched one on, so the window can
+    /// say so instead of silently jumping from, say, S01E24 to S02E05.
+    private func gaps(in episodes: [[String: Any]], after start: Int) -> [String] {
+        guard start < episodes.count else { return [] }
+        var result: [String] = []
+        func add(_ season: Int, _ first: Int, _ last: Int) {
+            guard first <= last else { return }
+            let from = String(format: "S%02dE%02d", season, first)
+            result.append(first == last ? from : from + String(format: "–E%02d", last))
+        }
+        // Compare each episode with the one before it (also the last watched one, so a gap
+        // right where you are counts too).
+        var previous: (season: Int, index: Int)? = start > 0
+            ? (number(episodes[start - 1]["parentIndex"]), number(episodes[start - 1]["index"])) : nil
+        for episode in episodes[start...] {
+            let season = number(episode["parentIndex"]), index = number(episode["index"])
+            guard season > 0, index > 0 else { continue }
+            if let previous, previous.season == season {
+                add(season, previous.index + 1, index - 1)
+            } else if let previous, season > previous.season + 1 {
+                result.append(season - previous.season == 2
+                    ? String(format: "season %d", previous.season + 1)
+                    : String(format: "seasons %d–%d", previous.season + 1, season - 1))
+                add(season, 1, index - 1)
+            } else {
+                add(season, 1, index - 1)
+            }
+            previous = (season, index)
+        }
+        return result
     }
 
     // MARK: - Files, named like the extension's (download.js)
@@ -389,6 +480,7 @@ final class KeepAhead {
                 "title": show.title,
                 "lead": show.lead,
                 "ready": show.ready,
+                "missing": show.missing ?? [],
                 "on": show.paused != true,
                 "lastReached": show.lastReached.map { $0.timeIntervalSince1970 * 1000 } ?? NSNull(),
                 "loginItem": SMAppService.mainApp.status == .enabled ? "on"

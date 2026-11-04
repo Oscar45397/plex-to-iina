@@ -23,6 +23,8 @@ function showDownloads(state) {
     section.hidden = active.length === 0;
     section.querySelector(".queue").replaceChildren(...active.map(queueRow));
     section.querySelector(".cancel-downloads").hidden = !state.busy;
+    section.querySelector(".resume-downloads").hidden = !state.stopped;
+    section.querySelector(".clear-downloads").hidden = !state.stopped;
 }
 
 function queueRow(item) {
@@ -59,6 +61,11 @@ function keptRow(show) {
     const text = element("div", "kept-text");
     text.append(element("span", "name", show.title),
         element("span", "status", show.on ? `${show.ready} of ${show.lead} ready · ${lastReached(show.lastReached)}` : "Off"));
+    if (show.missing?.length) {
+        const missing = element("span", "missing", `Not on the server: ${show.missing.join(", ")}`);
+        missing.title = "Plex doesn't have these episodes, so keep ahead skipped over them.";
+        text.append(missing);
+    }
     const remove = element("button", "link", "Remove");
     remove.title = `Forget ${show.title}: set it up again from Plex to keep it ahead`;
     remove.addEventListener("click", () => post({ action: "unkeep", id: show.id }));
@@ -192,3 +199,5 @@ function formatBytes(bytes) {
 document.querySelector(".open-preferences").addEventListener("click", () => post("open-preferences"));
 document.querySelector(".show-downloads").addEventListener("click", () => post("show-downloads"));
 document.querySelector(".cancel-downloads").addEventListener("click", () => post("cancel-downloads"));
+document.querySelector(".resume-downloads").addEventListener("click", () => post("resume-downloads"));
+document.querySelector(".clear-downloads").addEventListener("click", () => post("clear-downloads"));

@@ -29,6 +29,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // server in the background (KeepAhead.swift).
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
+                // Closing the window is a fresh start for the list, like quitting: the app may
+                // stay running in the background, so clear stopped and failed downloads now.
+                DownloadManager.shared.clearErrors()
                 if KeepAhead.shared.isActive { NSApp.setActivationPolicy(.accessory) }
             }
         }
