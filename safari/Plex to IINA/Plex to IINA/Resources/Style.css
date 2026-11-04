@@ -429,3 +429,12 @@ button.play:hover {
     color: var(--muted);
     font-size: 12px;
 }
+
+.section-head .actions {
+    display: flex;
+    gap: 16px;
+}
+
+.section-head .actions [hidden] {
+    display: none;
+}

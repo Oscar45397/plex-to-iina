@@ -23,6 +23,8 @@ function showDownloads(state) {
     section.hidden = active.length === 0;
     section.querySelector(".queue").replaceChildren(...active.map(queueRow));
     section.querySelector(".cancel-downloads").hidden = !state.busy;
+    section.querySelector(".resume-downloads").hidden = !state.stopped;
+    section.querySelector(".clear-downloads").hidden = !state.stopped;
 }
 
 function queueRow(item) {
@@ -166,3 +168,5 @@ function formatBytes(bytes) {
 document.querySelector(".open-preferences").addEventListener("click", () => post("open-preferences"));
 document.querySelector(".show-downloads").addEventListener("click", () => post("show-downloads"));
 document.querySelector(".cancel-downloads").addEventListener("click", () => post("cancel-downloads"));
+document.querySelector(".resume-downloads").addEventListener("click", () => post("resume-downloads"));
+document.querySelector(".clear-downloads").addEventListener("click", () => post("clear-downloads"));

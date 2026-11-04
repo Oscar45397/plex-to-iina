@@ -122,6 +122,12 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
         case "cancel-downloads":
             DownloadManager.shared.cancelAll()
             return
+        case "resume-downloads":
+            DownloadManager.shared.resumeAll()
+            return
+        case "clear-downloads":
+            DownloadManager.shared.clearErrors()
+            return
         case "open-preferences":
             break
         default:
