@@ -33,6 +33,9 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ### Fixed
 
+- **Keep ahead waits for whole files:** an episode still being copied onto the server
+  is no longer downloaded half-finished. Keep ahead waits until it's complete (and at
+  least 10 minutes old) and fetches it at a later check.
 - **Up Next at the end of a season:** the last episode of a season now always lines
   up the next season's first episode, on servers where it used to show no Up Next.
 - **Next episode offline:** a downloaded episode now goes on to the next downloaded
