@@ -6,6 +6,13 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+### Fixed
+
+- **Downloads carry on where you were:** a download opened from the app's library or
+  Finder now starts where Plex says you stopped (for example after streaming part of
+  it), instead of at the beginning. Its progress no longer replaces newer progress
+  made elsewhere, such as streaming on another device.
+
 ## [2.1.0] - 2026-11-05
 
 ### Added
