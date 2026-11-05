@@ -6,6 +6,8 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-11-05
+
 ### Fixed
 
 - **Downloads carry on where you were:** a download opened from the app's library or
