@@ -428,7 +428,8 @@
   async function startWhereLinked() {
     const path = mpv.getString('path');
     const it = parsePlexUrl(path, { quiet: true });
-    const start = it && linkedStart(path);
+    if (!it) return startDownloadWherePlex(path);
+    const start = linkedStart(path);
     if (!start) return; // opened some other way, or by an older extension: leave it to IINA
     if (freshLink(path)) {
       mpv.set('start', start);
@@ -446,6 +447,34 @@
     console.log(`Reopening /library/metadata/${it.ratingKey}: start ${offset ? `at ${Math.round(offset)} s` : 'at the beginning'}, where Plex says`);
   }
 
+  // A download opened from the app's library or Finder: start where you last were, as for a
+  // stream, so an episode begun streaming carries on from there instead of from 0.
+  async function startDownloadWherePlex(path) {
+    const it = downloadItem(path);
+    if (!it) return; // not a download, or its server isn't known yet: leave it to IINA
+    const details = (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
+    const offset = resumePoint(it, details);
+    if (offset === null) {
+      console.log(`Opening the download of /library/metadata/${it.ratingKey}: Plex didn't answer, resuming where IINA saved it`);
+      return;
+    }
+    mpv.set('start', offset ? String(offset) : 'none');
+    if (details) prefetch(it.ratingKey, details);
+    console.log(`Opening the download of /library/metadata/${it.ratingKey}: start ${offset ? `at ${Math.round(offset)} s` : 'at the beginning'}`);
+  }
+
+  // Where to start an item, in seconds: progress made offline and not yet sent wins (it's
+  // newer), else Plex's resume point. null when neither is known.
+  function resumePoint(it, details) {
+    const waiting = it.local && pendingProgress(it.ratingKey);
+    if (waiting && !waiting.watched && (!details || waiting.at > lastViewed(details))) return waiting.time / 1000;
+    if (!details) return null;
+    return details.viewOffset > 0 ? details.viewOffset / 1000 : 0;
+  }
+
+  // When Plex last saw the item played anywhere, in ms (0 if never).
+  const lastViewed = (details) => (Number(details?.lastViewedAt) || 0) * 1000;
+
   // Whether the link was made in the last minute, so it was just clicked in Plex Web.
   function freshLink(url) {
     const at = Number(/[?&]plexAt=(\d+)/.exec(url || '')?.[1]);
@@ -459,7 +488,7 @@
     const details = prefetchedDetails(it.ratingKey)
       || (await within(LOOKUP_MS, plexJson(it, `/library/metadata/${it.ratingKey}`, { includeMarkers: '1' })))?.Metadata?.[0];
     // Resume where Plex says, like the extension does by default.
-    const offset = details?.viewOffset > 0 ? details.viewOffset / 1000 : 0;
+    const offset = resumePoint(it, details) ?? 0;
     const tracks = details ? matchTracks(lastTracks, streamsOf(partOf(details, it.partId))) : { aid: 'auto', sid: 'auto' };
     mpv.set('start', offset ? String(offset) : 'none');
     mpv.set('aid', tracks.aid);
@@ -1087,6 +1116,13 @@
     syncDownloads(it.server);
   }
 
+  // Unsent progress of a download, by ratingKey (any server), or null.
+  function pendingProgress(ratingKey) {
+    const pending = loadPref(PENDING_KEY);
+    const id = Object.keys(pending).find((key) => pending[key].ratingKey === ratingKey);
+    return id ? pending[id] : null;
+  }
+
   function rememberServer(origin, token) {
     plexCall(origin, token, '/identity', {}).then((res) => {
       const id = String(jsonOf(res)?.MediaContainer?.machineIdentifier || '').toLowerCase();
@@ -1111,13 +1147,24 @@
     const waiting = Object.keys(pending).filter((id) => pending[id].server === server);
     if (!waiting.length) return;
     syncing.add(server);
-    const sent = waiting.map((id) => {
+    const sent = waiting.map(async (id) => {
       const entry = pending[id];
       const params = { key: entry.ratingKey, identifier: LIBRARY };
-      const request = entry.watched
-        ? plexCall(target.origin, target.token, '/:/scrobble', params)
-        : plexCall(target.origin, target.token, '/:/progress', { ...params, time: String(entry.time), state: 'stopped' });
-      return request.then((res) => (res ? { id, at: entry.at } : null));
+      if (!entry.watched) {
+        // Played somewhere else since (for example streamed on another device)? Then Plex's
+        // place is newer than this one: keep it rather than send an older position back.
+        const res = await plexCall(target.origin, target.token, `/library/metadata/${entry.ratingKey}`, {});
+        if (!res) return null;
+        const details = jsonOf(res)?.MediaContainer?.Metadata?.[0];
+        if (details && lastViewed(details) > entry.at) {
+          console.log(`Plex has newer progress for /library/metadata/${entry.ratingKey}; not sending the download's`);
+          return { id, at: entry.at };
+        }
+      }
+      const res = entry.watched
+        ? await plexCall(target.origin, target.token, '/:/scrobble', params)
+        : await plexCall(target.origin, target.token, '/:/progress', { ...params, time: String(entry.time), state: 'stopped' });
+      return res ? { id, at: entry.at } : null;
     });
     Promise.all(sent).then((results) => {
       syncing.delete(server);
