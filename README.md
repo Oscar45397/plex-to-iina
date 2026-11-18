@@ -41,7 +41,7 @@ show buttons over the video and to access files when IINA asks.
 
 Then press Play in Plex. **Option-click** Play to use Plex's own player. The toolbar
 popup has the settings: playback (resume, full screen, buffer size), audio and subtitle
-languages, and the Download button.
+languages, the Download button and a backup server address.
 
 **Updating:** pull or download the new version, then reload the extension in
 `chrome://extensions` or run `safari/build.sh` again, and install the plugin package
@@ -78,6 +78,12 @@ have are skipped, and the rest download one at a time.
   minutes, on wake and on network changes, also in the background). This needs the app,
   in Chrome too: build it with `safari/build.sh`. Switch a show off and on again in the
   app's window, or on its card in the library.
+- **Away from home:** if you reach your server another way too, such as Tailscale or
+  another VPN, enter that address under **Backup address** in the popup, for example
+  `http://100.64.0.10:32400`. When the usual address doesn't answer, Play, downloads,
+  keep ahead and download progress try it, and the other direct addresses Plex lists.
+  Click Download (or switch keep ahead on) once after setting it, so the app learns it.
+  Use the IP address with plain http; a name needs https.
 - **Safari:** the app does the downloading, checks free disk space and shows progress.
   Its window is your downloads library, with posters and a Play button for each item.
   Allow it to use the local network if macOS asks.

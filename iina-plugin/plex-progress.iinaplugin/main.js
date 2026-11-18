@@ -8,7 +8,9 @@
 // The extension adds plexRatingKey=<id> to the file URL; Plex ignores it, and we use it to
 // know which library item is playing. The server address and token come from the same URL.
 // It also adds plexStart=<seconds or none>, where the file should start, and plexAt=<ms>,
-// when the link was made (see the on_load hook).
+// when the link was made (see the on_load hook), and plexAlt=<address,…>, the server's
+// other addresses (a backup address over a VPN, say), which the Downloaded files section
+// tries when the address it remembered doesn't answer.
 //
 // A file downloaded by the extension is treated as the same Plex item (downloadItem): next
 // episode, Up Next and markers work the same; its progress goes through the Downloaded files
@@ -63,7 +65,11 @@
       : `Reporting progress of /library/metadata/${item.ratingKey} to ${item.origin}`);
     sample(item);
     item.sampler = setInterval(tick, SAMPLE_MS);
-    lookUp(item);
+    // A downloaded file: once we know which of the server's addresses answers.
+    const current = item;
+    (current.reached || Promise.resolve()).then(() => {
+      if (item === current) lookUp(current);
+    });
   });
 
   // Fires when playback starts (after the resume seek) and again after every seek.
@@ -826,6 +832,11 @@
     it.token = server.token;
     it.local = true;
     playingDownloads.set(it.ratingKey, path);
+    // If that address doesn't answer from here, use another of the server's that does, for
+    // the next episode and markers (the file-loaded handler waits for this).
+    it.reached = reachServer(tag[1]).then((found) => {
+      if (found) it.origin = found.origin;
+    });
     return it;
   }
 
@@ -911,7 +922,10 @@
   const DOWNLOAD_TAG = /\{plex-([0-9a-f]{8})-(\d+)\}\.[A-Za-z0-9]+$/;
   const SAVE_EVERY_MS = 30000; // while playing, save (and try to send) this often
   const KEEP_MS = 180 * 24 * 3600 * 1000; // give up on progress that couldn't be sent for this long
-  const SERVERS_KEY = 'downloadServers'; // { "<server>": { origin, token } }
+  const SERVERS_KEY = 'downloadServers'; // { "<server>": { origin, token, addresses } }
+  const MAX_ADDRESSES = 8;
+  const IDENTITY_MS = 8000;
+  const ORIGIN = /^https?:\/\/[^/?#\s]+$/i;
   const PENDING_KEY = 'downloadProgress'; // { "<server>-<ratingKey>": { …, time, duration, watched, at } }
   const TRASH_KEY = 'trashWatchedDownloads'; // on unless set to false
 
@@ -954,7 +968,8 @@
   function downloadedCopy(origin, ratingKey) {
     if (!/^\d+$/.test(ratingKey || '')) return null;
     const servers = loadPref(SERVERS_KEY);
-    const server = Object.keys(servers).find((id) => servers[id].origin === origin);
+    const server = Object.keys(servers).find((id) => servers[id].origin === origin
+      || (servers[id].addresses || []).includes(origin));
     if (!server) return null;
     const tag = `{plex-${server}-${ratingKey}}`;
     try {
@@ -992,7 +1007,10 @@
     const path = mpv.getString('path') || url || '';
     const stream = /^(https?:\/\/[^/?#]+)(\/[^?#]*)(?:\?([^#]*))?/i.exec(path);
     if (stream) {
-      if (PART_PATH.test(stream[2])) rememberServer(stream[1], parseQuery(stream[3] || '')['X-Plex-Token'] || '');
+      if (PART_PATH.test(stream[2])) {
+        const query = parseQuery(stream[3] || '');
+        rememberServer(stream[1], query['X-Plex-Token'] || '', query.plexAlt ? query.plexAlt.split(',') : null);
+      }
       const local = localCopies.get(path);
       localCopies.delete(path);
       // Playing a download instead of the stream: the stream code reports progress; this
@@ -1123,30 +1141,84 @@
     return id ? pending[id] : null;
   }
 
-  function rememberServer(origin, token) {
+  // The address and token a stream came from, once the server confirms who it is, with its
+  // other addresses (plexAlt). Without that list (an older extension), the ones known stay.
+  // The address used before stays as another one: it may be the one at home.
+  function rememberServer(origin, token, addresses) {
     plexCall(origin, token, '/identity', {}).then((res) => {
       const id = String(jsonOf(res)?.MediaContainer?.machineIdentifier || '').toLowerCase();
       if (!/^[0-9a-f]{8}/.test(id)) return;
-      const servers = loadPref(SERVERS_KEY);
       const server = id.slice(0, 8);
-      const known = servers[server];
-      if (!known || known.origin !== origin || known.token !== token) {
-        servers[server] = { origin, token };
-        savePref(SERVERS_KEY, servers);
-      }
+      storeServer(server, origin, token, addresses);
       syncDownloads(server);
     });
+  }
+
+  function storeServer(server, origin, token, addresses) {
+    const servers = loadPref(SERVERS_KEY);
+    const known = servers[server];
+    const others = [...new Set([...(addresses || (known && known.addresses) || []), known && known.origin])]
+      .filter((a) => typeof a === 'string' && ORIGIN.test(a) && a !== origin)
+      .slice(0, MAX_ADDRESSES);
+    if (known && known.origin === origin && known.token === token
+      && JSON.stringify(known.addresses || []) === JSON.stringify(others)) return;
+    servers[server] = { origin, token, addresses: others };
+    savePref(SERVERS_KEY, servers);
+  }
+
+  // The first of a server's addresses (the one that answered last first) that answers as
+  // that server, as { origin, token }, or null. Checking the identity first matters: on
+  // another network the same address can be something else. All are asked at once; the
+  // answer comes as soon as every address before the winner has said no.
+  async function reachServer(server) {
+    const known = loadPref(SERVERS_KEY)[server];
+    if (!known) return null;
+    const candidates = [known.origin, ...(known.addresses || [])];
+    const index = await new Promise((resolve) => {
+      const answers = candidates.map(() => null);
+      const decide = () => {
+        const first = answers.findIndex((a) => a !== false);
+        if (first < 0) resolve(-1);
+        else if (answers[first] === true) resolve(first);
+      };
+      candidates.forEach((origin, i) => {
+        // Without the token, and at most IDENTITY_MS each: an address that's gone may never answer.
+        Promise.race([
+          plexCall(origin, '', '/identity', {})
+            .then((res) => String(jsonOf(res)?.MediaContainer?.machineIdentifier || '').toLowerCase().startsWith(server)),
+          new Promise((done) => setTimeout(() => done(false), IDENTITY_MS)),
+        ]).then((ok) => {
+          answers[i] = ok;
+          decide();
+        });
+      });
+    });
+    if (index < 0) return null;
+    if (index > 0) {
+      console.log(`Plex server ${server} answers at another of its addresses`);
+      // All the addresses known when asking, so a check running alongside loses none.
+      storeServer(server, candidates[index], known.token, candidates);
+    }
+    return { origin: candidates[index], token: known.token };
   }
 
   // Send the waiting progress of one server's downloads: watched ones are marked watched,
   // the others get their resume point. Entries are removed once Plex has them.
   function syncDownloads(server) {
-    const target = loadPref(SERVERS_KEY)[server];
-    if (!target || syncing.has(server)) return;
+    if (!loadPref(SERVERS_KEY)[server] || syncing.has(server)) return;
     const pending = loadPref(PENDING_KEY);
     const waiting = Object.keys(pending).filter((id) => pending[id].server === server);
     if (!waiting.length) return;
     syncing.add(server);
+    reachServer(server).then((target) => {
+      if (target) return sendDownloads(server, target, pending, waiting);
+      syncing.delete(server);
+      console.log(`Plex server ${server} didn't answer; keeping progress of ${waiting.length} downloaded file(s) for later`);
+      return null;
+    });
+  }
+
+  function sendDownloads(server, target, pending, waiting) {
     const sent = waiting.map(async (id) => {
       const entry = pending[id];
       const params = { key: entry.ratingKey, identifier: LIBRARY };

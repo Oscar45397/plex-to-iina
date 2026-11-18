@@ -10,6 +10,11 @@
 //  the first episodes are complete first, for example if you leave before the rest are
 //  done. Progress shows in the app's window and as a count on its Dock icon.
 //
+//  When the server stops answering (you leave home mid-download, say), the app looks for
+//  another of its addresses that answers (KeepAhead.reach) and carries on there, starting
+//  that file over: what was downloaded can only be resumed from the same address. A file
+//  that still can't be fetched waits; keep ahead tries it again once the server answers.
+//
 
 import AppKit
 import os.log
@@ -22,6 +27,7 @@ struct DownloadJob: Codable {
     let size: Int64
     let label: String
     let poster: String?  // a small poster image on the same server, for the library
+    var addresses: [String]? = nil  // the server's other addresses (download.js)
 }
 
 final class Download {
@@ -36,6 +42,10 @@ final class Download {
     var total: Int64
     var savedAs: URL?
     var resumeData: Data?  // from a stopped or failed download, to carry on where it was
+    var origin: String?  // another address of the server to fetch it from, instead of the job's
+    var unreachable = false  // failed because the server didn't answer
+    var findServer = false  // before (re)starting, look for an address that answers
+    var triedElsewhere = false  // already retried once on its own after losing the server
 
     init(job: DownloadJob, destination: URL) {
         self.job = job
@@ -54,6 +64,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     private let log = OSLog(subsystem: "local.plex-to-iina.app", category: "download")
     private(set) var items: [Download] = []
     private var current: (item: Download, task: URLSessionDownloadTask)?
+    private var findingServer = false
     private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
 
     /// Called on the main thread whenever something changes.
@@ -104,9 +115,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             if onDisk.contains(job.tag) { continue }
             if items.contains(where: { $0.job.tag == job.tag && [.queued, .downloading, .done].contains($0.status) }) { continue }
             items.append(Download(job: job, destination: destination))
-            if let server = KeepAhead.parse(tag: job.tag)?.server, let host = source.host {
-                let port = source.port.map { ":\($0)" } ?? ""
-                KeepAhead.shared.remember(server: server, origin: "\(source.scheme!)://\(host)\(port)", token: job.token)
+            if let server = KeepAhead.parse(tag: job.tag)?.server, let origin = KeepAhead.origin(of: source) {
+                KeepAhead.shared.remember(server: server, origin: origin, token: job.token, addresses: job.addresses)
             }
             Posters.fetch(for: job)
             added += 1
@@ -119,8 +129,30 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     // MARK: - Downloading
 
     private func startNext() {
-        guard current == nil, let item = items.first(where: { $0.status == .queued }),
-              let url = URL(string: item.job.url) else { return }
+        guard current == nil, !findingServer, let item = items.first(where: { $0.status == .queued }),
+              let url = source(of: item) else { return }
+
+        if item.findServer, let server = KeepAhead.parse(tag: item.job.tag)?.server {
+            findingServer = true
+            KeepAhead.shared.reach(server: server, also: [KeepAhead.origin(of: url)].compactMap { $0 }) { [weak self] origin in
+                guard let self else { return }
+                self.findingServer = false
+                item.findServer = false
+                if let origin {
+                    if origin != KeepAhead.origin(of: url) {
+                        os_log(.default, log: self.log, "Downloading %{public}@ from another address of the server", item.job.label)
+                        item.origin = origin
+                        item.resumeData = nil  // only resumable from the same address
+                    }
+                } else if item.status == .queued {
+                    item.status = .failed("Couldn't reach the server at any of its addresses")
+                    item.unreachable = true
+                }
+                self.startNext()
+                self.changed()
+            }
+            return
+        }
 
         if let free = DownloadFolder.freeBytes(), item.total + Self.spareBytes > free {
             let message = "Not enough disk space (\(Self.format(free)) free)"
@@ -162,13 +194,57 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         for item in items {
             switch item.status {
             case .failed, .cancelled:
-                item.status = .queued
-                item.received = 0
+                requeue(item)
             default: break
             }
         }
         startNext()
         changed()
+    }
+
+    /// Queues a stopped or failed download again, first checking which address answers.
+    private func requeue(_ item: Download) {
+        item.status = .queued
+        item.received = 0
+        item.unreachable = false
+        item.triedElsewhere = false
+        item.findServer = true
+    }
+
+    /// Downloads from this server that failed because it didn't answer: once it does again
+    /// (keep ahead found it), carry on.
+    func retryUnreachable(server: String) {
+        let waiting = items.filter {
+            guard case .failed = $0.status else { return false }
+            return $0.unreachable && KeepAhead.parse(tag: $0.job.tag)?.server == server
+        }
+        guard !waiting.isEmpty else { return }
+        waiting.forEach(requeue)
+        os_log(.default, log: log, "The server answers again; retrying %d downloads", waiting.count)
+        startNext()
+        changed()
+    }
+
+    /// The file's URL on the address in use: the job's, or another of the server's.
+    private func source(of item: Download) -> URL? {
+        guard var url = URLComponents(string: item.job.url) else { return nil }
+        if let origin = item.origin, let other = URLComponents(string: origin) {
+            url.scheme = other.scheme
+            url.host = other.host
+            url.port = other.port
+        }
+        return url.url
+    }
+
+    /// Errors that mean the server couldn't be reached from here, rather than a problem
+    /// with the file.
+    private static func isUnreachable(_ error: Error) -> Bool {
+        let codes: Set<URLError.Code> = [
+            .timedOut, .cannotFindHost, .cannotConnectToHost, .networkConnectionLost, .dnsLookupFailed,
+            .notConnectedToInternet, .secureConnectionFailed, .serverCertificateUntrusted,
+            .serverCertificateHasBadDate, .serverCertificateNotYetValid, .appTransportSecurityRequiresSecureConnection,
+        ]
+        return (error as? URLError).map { codes.contains($0.code) } ?? false
     }
 
     /// Removes the stopped and failed downloads from the list. Kept-ahead shows may then
@@ -235,6 +311,17 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         if let error, item.status == .downloading {
             item.resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
             item.status = .failed(error.localizedDescription)
+            item.unreachable = Self.isUnreachable(error)
+            // Lost the server: once, right away, look for another address that answers (or
+            // the same one, back after a moment) and carry on there.
+            if item.unreachable, !item.triedElsewhere,
+               let server = KeepAhead.parse(tag: item.job.tag)?.server, KeepAhead.shared.hasOtherAddresses(server) {
+                item.status = .queued
+                item.unreachable = false
+                item.findServer = true
+                item.triedElsewhere = true
+                os_log(.default, log: log, "Lost the server while downloading %{public}@; looking for it", item.job.label)
+            }
         } else if item.status == .downloading {
             item.status = .failed("The download stopped")
         }

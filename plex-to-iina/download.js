@@ -218,6 +218,7 @@
     const keep = showKey ? {
       server: target.machineId.slice(0, 8).toLowerCase(),
       origin: server.uri,
+      addresses: server.addresses ?? [], // tried when origin doesn't answer (content.js)
       token: server.token ?? '',
       showKey: String(showKey),
       title: { show: item.title, season: item.parentTitle, episode: item.grandparentTitle }[item.type] ?? files[0].show,
@@ -315,6 +316,8 @@
       url: url.href,
       poster: poster?.href ?? null,
       token: server.token ?? '',
+      // The server's other addresses: the Safari app tries them if this one stops answering.
+      addresses: server.addresses ?? [],
       size: part.size ?? 0,
       label: item.type === 'episode' ? `${episodeCode(item)}${item.title ? ` · ${item.title}` : ''}` : titleOf(item),
       show: item.grandparentTitle ?? '',
@@ -525,7 +528,7 @@
 
   async function start(plan, total) {
     closePopover();
-    const jobs = plan.files.map(({ tag, path, url, poster, token, size, label }) => ({ tag, path, url, poster, token, size, label }));
+    const jobs = plan.files.map(({ tag, path, url, poster, token, addresses, size, label }) => ({ tag, path, url, poster, token, addresses, size, label }));
     try {
       const reply = await send({ type: 'download', jobs });
       if (reply.error) throw new Error(reply.error);

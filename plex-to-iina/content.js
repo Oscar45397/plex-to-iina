@@ -44,12 +44,15 @@
     enabled: true, resume: true, fullScreen: false, bufferGB: 5, bestAudio: true,
     // Subtitles when the audio isn't in one of your languages; empty list = browser's.
     autoSubtitles: true, myLanguages: '',
+    // Another address of the server (popup.js), for example over a VPN; '' for none.
+    backupAddress: '',
   };
   let settings = { ...DEFAULTS };
   ext.storage.sync.get(DEFAULTS).then((stored) => { settings = stored; });
   ext.storage.onChanged.addListener((changes, area) => {
     if (area !== 'sync') return;
     for (const [key, { newValue }] of Object.entries(changes)) settings[key] = newValue;
+    if ('backupAddress' in changes) serverCache.clear(); // look again, with the new address
   });
 
   // Set while we re-send a click to Plex, so our own listener lets it through.
@@ -262,12 +265,19 @@
     return promise;
   }
 
+  // The server's address to use now, and with `addresses` the other direct ones (the
+  // backup address, then what plex.tv lists, never Relay): the Plex to IINA app (keep
+  // ahead, downloads) and the IINA plugin (progress of downloaded copies) try those when
+  // this one doesn't answer later, for example away from home over a VPN. Each checks
+  // /identity first, so an address that's something else on another network is skipped.
   async function findServer(machineId) {
     const token = accountToken();
+    const backup = backupAddress();
+    const others = (uri, list = []) => [...new Set([backup, ...list].filter((a) => a && a !== uri))];
 
     // Plex Web served by the server itself (http://<server>:32400/web): use this origin.
     if (location.hostname !== 'app.plex.tv' && await probe(location.origin, machineId)) {
-      return { uri: location.origin, token, relay: false };
+      return { uri: location.origin, token, relay: false, addresses: others(location.origin) };
     }
     if (!token) throw new Error('not signed in to Plex');
 
@@ -282,23 +292,39 @@
 
     // An https page can't fetch plain-http connections, so only probe https ones there.
     const usable = (device.connections ?? []).filter((c) => location.protocol !== 'https:' || c.protocol === 'https');
+    // The backup address before Relay, and only after what plex.tv lists, which is
+    // usually quicker at home. An https page can only use an https backup address.
+    const backupUsable = backup && (location.protocol !== 'https:' || backup.startsWith('https:'));
     const tiers = [
       usable.filter((c) => c.local && !c.relay),
       usable.filter((c) => !c.local && !c.relay),
+      backupUsable ? [{ uri: backup, relay: false }] : [],
       usable.filter((c) => c.relay),
     ];
+    const direct = (device.connections ?? []).filter((c) => !c.relay).map((c) => c.uri);
     for (const tier of tiers) {
       if (!tier.length) continue;
       try {
         const winner = await Promise.any(
           tier.map((c) => probe(c.uri, machineId).then((ok) => (ok ? c : Promise.reject()))),
         );
-        return { uri: winner.uri, token: device.accessToken || token, relay: Boolean(winner.relay) };
+        return {
+          uri: winner.uri,
+          token: device.accessToken || token,
+          relay: Boolean(winner.relay),
+          addresses: others(winner.uri, direct),
+        };
       } catch {
         // Nothing in this tier answered; try the next one.
       }
     }
     throw new Error(`couldn't reach ${device.name}`);
+  }
+
+  // As stored by popup.js: http(s)://host:port, or ''.
+  function backupAddress() {
+    const address = String(settings.backupAddress ?? '');
+    return /^https?:\/\/[^/?#\s]+$/i.test(address) ? address : '';
   }
 
   async function probe(uri, machineId) {
@@ -482,6 +508,9 @@
     if (server.token) file.searchParams.set('X-Plex-Token', server.token);
     // Plex ignores this; the IINA plugin (iina-plugin/) reads it to report watch progress.
     file.searchParams.set('plexRatingKey', video.ratingKey);
+    // The server's other addresses (findServer), which the plugin tries for downloaded
+    // copies when this one doesn't answer. Plex ignores this too.
+    if (server.addresses?.length) file.searchParams.set('plexAlt', server.addresses.join(','));
     // Where to start, in seconds, or 'none' for the beginning. IINA keeps mpv options per
     // player window, so always set it; otherwise the next file would inherit the previous
     // resume point. IINA sets mpv_start only after it has started opening the file, so its

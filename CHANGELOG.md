@@ -6,6 +6,14 @@ All notable changes to this project. Sections: **Added** (new features), **Impro
 
 ## [Unreleased]
 
+### Added
+
+- **Backup server address:** enter another address of your Plex server in the popup,
+  such as a Tailscale or other VPN address. When the usual address doesn't answer, keep
+  ahead, downloads in the Plex to IINA app, progress of downloaded copies and Play try
+  it, along with the other direct addresses Plex lists for the server. A download that
+  loses the server partway carries on over another address, starting that file over.
+
 ## [2.1.1] - 2026-11-05
 
 ### Fixed

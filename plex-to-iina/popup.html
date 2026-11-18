@@ -139,6 +139,7 @@
     :is(select, input, .segments label):focus-visible,
     .segments input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
     input[type="text"]::placeholder { color: var(--muted); }
+    input[type="text"].invalid { border-color: #d70015; }
 
     /* Settings that don't apply right now: Play goes to Plex, or no Download button. */
     .off { opacity: 0.45; }
@@ -227,6 +228,16 @@
           <option value="10">10</option>
           <option value="0">Rest of season</option>
         </select>
+      </label>
+    </div>
+  </section>
+
+  <section id="server">
+    <h2>Server</h2>
+    <div class="group">
+      <label class="row stack" title="Another address of your Plex server, for example over Tailscale or another VPN. Play, downloads, keep ahead and progress reports try it when the address in use doesn't answer. Use the IP address with plain http (the Plex to IINA app can't use plain http with a name) or an https address.">
+        <span class="text">Backup address<small>Tried when the usual one doesn't answer</small></span>
+        <input type="text" id="backupAddress" autocomplete="off" spellcheck="false" placeholder="http://100.64.0.10:32400">
       </label>
     </div>
   </section>
