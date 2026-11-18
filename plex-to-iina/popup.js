@@ -6,7 +6,7 @@ const LANGUAGES = globalThis.PlexToIinaLanguages;
 // Keep in sync with DEFAULTS in content.js.
 const DEFAULTS = {
   enabled: true, resume: true, fullScreen: false, bufferGB: 5, bestAudio: true,
-  autoSubtitles: true, myLanguages: '',
+  autoSubtitles: true, myLanguages: '', backupAddress: '',
 };
 // Keep in sync with DEFAULTS in download.js.
 const DOWNLOAD_DEFAULTS = { downloadButton: true, downloadCount: 3 };
@@ -45,6 +45,14 @@ ext.storage.sync.get({ ...DEFAULTS, ...DOWNLOAD_DEFAULTS }).then((settings) => {
         ext.storage.sync.set({ [key]: input.checked });
         showState();
       });
+    } else if (key === 'backupAddress') {
+      input.value = value;
+      input.addEventListener('change', () => {
+        const address = serverAddress(input.value);
+        input.value = address ?? input.value.trim();
+        input.classList.toggle('invalid', address === null);
+        if (address !== null) ext.storage.sync.set({ [key]: address });
+      });
     } else if (input.type === 'text') {
       input.value = value;
       // Show what was understood ("en, ES" → "English, Spanish"); unknown names drop out.
@@ -59,3 +67,20 @@ ext.storage.sync.get({ ...DEFAULTS, ...DOWNLOAD_DEFAULTS }).then((settings) => {
   }
   showState();
 });
+
+// A server address as http(s)://host:port, or '' for none, or null if it isn't one.
+// "100.64.0.10" becomes http://100.64.0.10:32400, Plex's own port; with a scheme or port
+// given, the address is kept as typed (for example https behind a reverse proxy).
+function serverAddress(text) {
+  const typed = text.trim();
+  if (!typed) return '';
+  const withScheme = /^[a-z]+:\/\//i.test(typed);
+  try {
+    const url = new URL(withScheme ? typed : `http://${typed}`);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return null;
+    if (!withScheme && !url.port) url.port = '32400';
+    return url.origin;
+  } catch {
+    return null;
+  }
+}

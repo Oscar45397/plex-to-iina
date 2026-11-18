@@ -8,7 +8,10 @@
 //  changes) it fills the lead up completely, rather than waiting until you're nearly out.
 //
 //  The extension sends plex-to-iina://keep?data=<base64 JSON> with the show and the server
-//  address and token it used; a lead of 0 stops keeping the show. While any show is kept,
+//  address and token it used; a lead of 0 stops keeping the show. It also sends the
+//  server's other addresses (your backup address, and the direct ones plex.tv lists): when
+//  the one used last doesn't answer, for example away from home, the app tries those, so a
+//  show set up at home is still kept ahead over a VPN. While any show is kept,
 //  the app keeps running in the background (AppDelegate) and opens at login.
 //
 
@@ -65,7 +68,12 @@ final class KeepAhead {
     // MARK: - Servers seen, so a downloaded show can be kept ahead from the app alone
 
     private static let serversKey = "servers"
-    private struct Server: Codable { var origin: String; var token: String }
+    private struct Server: Codable {
+        var origin: String  // the address that answered last
+        var token: String
+        var addresses: [String]?  // its other addresses, tried when origin doesn't answer
+    }
+    private static let maxAddresses = 8
 
     private var servers: [String: Server] {
         get {
@@ -77,11 +85,79 @@ final class KeepAhead {
         }
     }
 
-    /// The address and token for a server, from downloads and keep requests (the last one wins).
-    func remember(server: String, origin: String, token: String) {
+    /// The address and token for a server, from downloads and keep requests (the last one
+    /// wins), with its other addresses. Without a list (an older extension), the ones known
+    /// stay. The address used before stays as another one: it may be the one at home.
+    func remember(server: String, origin: String, token: String, addresses: [String]? = nil) {
         guard server.range(of: #"^[0-9a-f]{8}$"#, options: .regularExpression) != nil,
-              servers[server]?.origin != origin || servers[server]?.token != token else { return }
-        servers[server] = Server(origin: origin, token: token)
+              Self.isOrigin(origin) else { return }
+        let known = servers[server]
+        let others = Self.unique((addresses ?? known?.addresses ?? []) + [known?.origin].compactMap { $0 })
+            .filter { $0 != origin && Self.isOrigin($0) }
+        let updated = Server(origin: origin, token: token, addresses: Array(others.prefix(Self.maxAddresses)))
+        guard known?.origin != updated.origin || known?.token != updated.token
+                || (known?.addresses ?? []) != (updated.addresses ?? []) else { return }
+        servers[server] = updated
+    }
+
+    /// Only a bare http(s)://host[:port]: anything else in a request is ignored.
+    static func isOrigin(_ text: String) -> Bool {
+        guard let url = URLComponents(string: text), ["http", "https"].contains(url.scheme ?? ""),
+              url.host?.isEmpty == false, url.user == nil, url.query == nil, url.fragment == nil else { return false }
+        return url.path.isEmpty || url.path == "/"
+    }
+
+    /// http(s)://host[:port] of a URL.
+    static func origin(of url: URL) -> String? {
+        guard let scheme = url.scheme, let host = url.host else { return nil }
+        let bracketed = host.contains(":") ? "[\(host)]" : host  // IPv6
+        return "\(scheme)://\(bracketed)\(url.port.map { ":\($0)" } ?? "")"
+    }
+
+    private static func unique(_ list: [String]) -> [String] {
+        var seen = Set<String>()
+        return list.filter { seen.insert($0).inserted }
+    }
+
+    /// Whether more than one address is known for a server.
+    func hasOtherAddresses(_ server: String) -> Bool {
+        !(servers[server]?.addresses ?? []).isEmpty
+    }
+
+    /// Asks each of a server's addresses (the one that answered last first, then `also`)
+    /// whether it's that server, all at once, and calls back on the main thread with the
+    /// first in that order that is, or nil. That one is then remembered as the server's
+    /// address. Checking the identity first matters: on another network the same address
+    /// can belong to something else, and it mustn't get the token.
+    func reach(server: String, also: [String] = [], then done: @escaping (String?) -> Void) {
+        let known = servers[server]
+        let candidates = Self.unique([known?.origin].compactMap { $0 } + (known?.addresses ?? []) + also)
+            .compactMap { URL(string: $0) }
+        guard !candidates.isEmpty else { return done(nil) }
+        var answered = [Bool](repeating: false, count: candidates.count)
+        let group = DispatchGroup()
+        for (i, base) in candidates.enumerated() {
+            var identity = URLRequest(url: base.appendingPathComponent("identity"), timeoutInterval: 8)
+            identity.setValue("application/json", forHTTPHeaderField: "Accept")
+            group.enter()
+            URLSession.shared.dataTask(with: identity) { data, _, _ in
+                let machine = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
+                    .flatMap { $0["MediaContainer"] as? [String: Any] }?["machineIdentifier"] as? String
+                DispatchQueue.main.async {
+                    answered[i] = machine?.lowercased().hasPrefix(server) == true
+                    group.leave()
+                }
+            }.resume()
+        }
+        group.notify(queue: .main) { [weak self] in
+            guard let self, let index = answered.firstIndex(of: true) else { return done(nil) }
+            let origin = candidates[index].absoluteString.replacingOccurrences(of: #"/$"#, with: "", options: .regularExpression)
+            if index > 0, let known = self.servers[server] {
+                os_log(.default, log: self.log, "Reached the server at another of its addresses")
+                self.remember(server: server, origin: origin, token: known.token, addresses: known.addresses)
+            }
+            done(origin)
+        }
     }
 
     /// The server and Plex item of a download's tag, "{plex-<server>-<ratingKey>}".
@@ -99,8 +175,18 @@ final class KeepAhead {
     /// Keep a downloaded show ahead, from the switch on its card: ask its server which show
     /// the episode belongs to, then keep it from that episode on.
     func keep(episodeTag tag: String, lead: Int = 5) {
-        guard let (server, key) = Self.parse(tag: tag), let known = servers[server],
-              let base = URL(string: known.origin) else { return }
+        guard let (server, key) = Self.parse(tag: tag), servers[server] != nil else { return }
+        reach(server: server) { [weak self] origin in
+            guard let self, let origin, let known = self.servers[server], let base = URL(string: origin) else {
+                os_log(.error, log: self?.log ?? .default, "Couldn't reach the server to keep a show ahead")
+                self?.onChange?()  // put the switch back
+                return
+            }
+            self.keep(episode: key, of: server, at: base, known: known, lead: lead)
+        }
+    }
+
+    private func keep(episode key: String, of server: String, at base: URL, known: Server, lead: Int) {
         var request = URLRequest(url: base.appendingPathComponent("library/metadata/\(key)"), timeoutInterval: 15)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if !known.token.isEmpty { request.setValue(known.token, forHTTPHeaderField: "X-Plex-Token") }
@@ -119,7 +205,7 @@ final class KeepAhead {
                     self.shows[index].paused = nil
                 } else {
                     self.shows.append(KeptShow(
-                        server: server, origin: known.origin, token: known.token, showKey: showKey,
+                        server: server, origin: base.absoluteString, token: known.token, showKey: showKey,
                         title: episode["grandparentTitle"] as? String ?? "Show", lead: lead, from: key))
                 }
                 self.save()
@@ -148,7 +234,8 @@ final class KeepAhead {
             os_log(.error, log: log, "Ignored a link that wasn't a keep-ahead request")
             return false
         }
-        remember(server: server, origin: origin, token: request["token"] as? String ?? "")
+        remember(server: server, origin: origin, token: request["token"] as? String ?? "",
+                 addresses: (request["addresses"] as? [Any])?.compactMap { $0 as? String })
         let id = "\(server)-\(showKey)"
         if lead == 0 {
             // Switched off, not forgotten: it can be switched on again in the app.
@@ -235,25 +322,23 @@ final class KeepAhead {
     // MARK: - Checking one show
 
     private func check(_ id: String) {
-        guard let show = shows.first(where: { $0.id == id }), show.paused != true, !checking.contains(id),
-              let base = URL(string: show.origin) else { return }
+        guard let show = shows.first(where: { $0.id == id }), show.paused != true, !checking.contains(id) else { return }
         checking.insert(id)
-        // Make sure it's this server before sending the token: on another network the same
-        // address can belong to something else.
-        var identity = URLRequest(url: base.appendingPathComponent("identity"), timeoutInterval: 8)
-        identity.setValue("application/json", forHTTPHeaderField: "Accept")
-        URLSession.shared.dataTask(with: identity) { [weak self] data, _, _ in
-            let machine = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
-                .flatMap { $0["MediaContainer"] as? [String: Any] }?["machineIdentifier"] as? String
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard machine?.lowercased().hasPrefix(show.server) == true else {
-                    self.checking.remove(id)  // not reachable from here
-                    return
-                }
-                self.fetchEpisodes(of: show)
+        // Whichever of the server's addresses answers as this server (see reach).
+        reach(server: show.server, also: [show.origin]) { [weak self] origin in
+            guard let self else { return }
+            guard let origin, let index = self.shows.firstIndex(where: { $0.id == id }) else {
+                self.checking.remove(id)  // not reachable from here
+                return
             }
-        }.resume()
+            if self.shows[index].origin != origin {
+                self.shows[index].origin = origin
+                self.save()
+            }
+            // Downloads of this server that stopped because it couldn't be reached.
+            DownloadManager.shared.retryUnreachable(server: show.server)
+            self.fetchEpisodes(of: self.shows[index])
+        }
     }
 
     private func fetchEpisodes(of show: KeptShow) {
